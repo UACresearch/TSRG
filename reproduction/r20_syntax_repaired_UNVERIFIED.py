@@ -1,0 +1,5602 @@
+# ==========================================================================================
+# Tourism-Puffin
+# R20 | ONE-TIME FORMAL TEST239 REVEAL
+#       M0 vs frozen M2-PAR
+#
+# ==========================================================================================
+#
+# FROZEN BEFORE TEST:
+#
+# M2-PAR
+#   roll        = M0
+#   square-vFoV = M0
+#   pitch:
+#       event         -> R19 M1-v4 specialist
+#       heritage      -> R19 M1-v4 specialist
+#       natural       -> M0
+#       purpose_built -> M0
+#
+# R19 final specialist:
+#   Epoch 3
+#   SHA256 =
+#   1dc8afa37c4947d30f58e9ae3aa260c76730dd7201a042f98fcbfd97ae0da8b0
+#
+# PRIMARY R18 PRECOMMIT:
+#
+#   P1 specialist pitch parsing = 100% on every event/heritage test image
+#   P2 M2-PAR test239 pitch MAE < M0 test239 pitch MAE
+#   P3 M2-PAR roll == M0 exactly
+#   P4 M2-PAR square-vFoV == M0 exactly
+#
+#   PRIMARY SUCCESS = P1 & P2 & P3 & P4
+#
+# TEST REFERENCE:
+#   GeoCalib parameter-level pitch reference
+#   pitch reliable iff:
+#       status == "ok"
+#       pitch finite
+#       pitch_uncertainty_deg <= 3.0
+#
+# IMPORTANT:
+#   Before touching test performance, this reconstruction policy MUST exactly
+#   reproduce the already-known primary-train pitch supervision mask
+#   (234 / 526 primary rows) and target values.
+#
+# NO TRAINING.
+# NO Stable101.
+# NO MODEL SELECTION.
+# NO ROUTING CHANGES.
+# NO EPOCH CHANGES.
+# NO BLENDING.
+#
+# ==========================================================================================
+
+
+# ==========================================================================================
+# 0. IMPORTS
+# ==========================================================================================
+
+import os
+import sys
+import re
+import gc
+import json
+import math
+import time
+import random
+import hashlib
+import inspect
+import importlib
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+import torch
+import torch.nn as nn
+
+from PIL import Image
+from tqdm.auto import tqdm
+
+import kagglehub
+
+
+# ==========================================================================================
+# 1. FROZEN CONFIGURATION
+# ==========================================================================================
+
+SEED = 20260908
+
+BOOTSTRAP_SEED = 20260926
+BOOTSTRAP_B = 10_000
+
+MAX_NEW_TOKENS = 512
+INFER_BATCH_SIZE = 4
+
+DTYPE = torch.bfloat16
+
+
+assert torch.cuda.is_available(), (
+    "R20 requires GPU."
+)
+
+assert (
+    torch.cuda.device_count()
+    >=
+    2
+), (
+    "Use Kaggle 2xT4 for R20."
+)
+
+
+VIS_DEV = torch.device(
+    "cuda:0"
+)
+
+LLM_DEV = torch.device(
+    "cuda:1"
+)
+
+
+PROMPT = (
+    "Describe the image in detail. "
+    "Then reason its spatial distribution and estimate "
+    "its camera parameters (roll, pitch, and field-of-view)."
+)
+
+
+SPECIALIST_CATEGORIES = {
+    "event",
+    "heritage",
+}
+
+
+BASE_CATEGORIES = {
+    "natural",
+    "purpose_built",
+}
+
+
+ALL_CATEGORIES = {
+    "event",
+    "heritage",
+    "natural",
+    "purpose_built",
+}
+
+
+# ----------------------------------------------------------
+# Exact R19 locks
+# ----------------------------------------------------------
+
+EXPECTED_R19_PROTOCOL_SIGNATURE = (
+    "f83708c4201d3af5e02b2b4623f4723799f3dcdaa6230111473173e5028013f7"
+)
+
+
+EXPECTED_R19_ADAPTER_SHA256 = (
+    "1dc8afa37c4947d30f58e9ae3aa260c76730dd7201a042f98fcbfd97ae0da8b0"
+)
+
+
+# ==========================================================================================
+# 2. PATHS / DATASETS
+# ==========================================================================================
+
+DATA_ROOT = Path(
+    "/kaggle/input/datasets/caolitong/"
+    "tourism-puffin-geometry-training"
+)
+
+
+MANIFEST_PATH = (
+    DATA_ROOT
+    /
+    "metadata"
+    /
+    "trainable_manifest_final.csv"
+)
+
+
+FILTER_AUDIT_PATH = (
+    DATA_ROOT
+    /
+    "reports"
+    /
+    "geocalib_filter_audit.csv"
+)
+
+
+GEOMETRY_MASTER_PATH = (
+    DATA_ROOT
+    /
+    "geometry_training"
+    /
+    "geometry_train_combined.jsonl"
+)
+
+
+M0_TRAIN_PATH = Path(
+    "/kaggle/input/datasets/caolitong/"
+    "tourism-puffin-m0-train742-merged-v1/"
+    "m0_train742_predictions_merged.csv"
+)
+
+
+DEV_RADIO_HANDLE = (
+    "caolitong/"
+    "tourism-puffin-m1-v3-radio-cache-742"
+)
+
+
+R18_HANDLE = (
+    "caolitong/"
+    "tourism-puffin-r18-m2-par-freeze-v1"
+)
+
+
+R19_HANDLE = (
+    "caolitong/"
+    "tourism-puffin-r19-m2par-full-pitch-specialist-v1"
+)
+
+
+SAVE_HANDLE = (
+    "caolitong/"
+    "tourism-puffin-r20-m2par-final-test-v1"
+)
+
+
+PUFFIN_REPO = Path(
+    "/kaggle/input/notebooks/caolitong/"
+    "notebook8473921acb/"
+    "PuffinOfficial/Puffin"
+)
+
+
+HF_CACHE = Path(
+    "/kaggle/input/notebooks/caolitong/"
+    "notebook8473921acb/"
+    "hf-cache"
+)
+
+
+WORK = Path(
+    "/kaggle/working/"
+    "tourism_puffin_r20_final_test"
+)
+
+
+STAGE = (
+    WORK
+    /
+    "persistent_stage"
+)
+
+
+CACHE_DIR = (
+    WORK
+    /
+    "ephemeral_cache"
+)
+
+
+STAGE.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+
+CACHE_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+
+TEST_RADIO_CACHE = (
+    CACHE_DIR
+    /
+    "test239_radio_tokens_float32.npy"
+)
+
+
+EXPECTED_DEV_RADIO_SHA256 = (
+    "efe3b25e4a955782aa8bf614358b32be0"
+    "bf8e8dd63281fd6d5ced9bb56e0ddc4"
+)
+
+
+print(
+    "=" * 112
+)
+
+print(
+    "R20 | ONE-TIME FORMAL TEST239 REVEAL"
+)
+
+print(
+    "=" * 112
+)
+
+print(
+    "GPUs:",
+    [
+        torch.cuda.get_device_name(i)
+        for i in range(
+            torch.cuda.device_count()
+        )
+    ]
+)
+
+print(
+    "VIS_DEV:",
+    VIS_DEV
+)
+
+print(
+    "LLM_DEV:",
+    LLM_DEV
+)
+
+print(
+    "Training:",
+    False
+)
+
+print(
+    "Stable101 used:",
+    False
+)
+
+print(
+    "test239 evaluation:",
+    "FORMAL ONE-TIME REVEAL"
+)
+
+
+# ==========================================================================================
+# 3. REPRODUCIBILITY
+# ==========================================================================================
+
+random.seed(
+    SEED
+)
+
+np.random.seed(
+    SEED
+)
+
+torch.manual_seed(
+    SEED
+)
+
+torch.cuda.manual_seed_all(
+    SEED
+)
+
+
+# ==========================================================================================
+# 4. HELPERS
+# ==========================================================================================
+
+def sha256_file(
+    path
+):
+
+    path = Path(
+        path
+    )
+
+    h = hashlib.sha256()
+
+    with path.open(
+        "rb"
+    ) as f:
+
+        while True:
+
+            chunk = f.read(
+                8 * 1024 * 1024
+            )
+
+            if not chunk:
+                break
+
+            h.update(
+                chunk
+            )
+
+    return h.hexdigest()
+
+
+def sha256_text(
+    text
+):
+
+    return hashlib.sha256(
+        str(
+            text
+        ).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def dataset_download_fresh(
+    handle
+):
+
+    fn = (
+        kagglehub
+        .dataset_download
+    )
+
+    sig = inspect.signature(
+        fn
+    )
+
+    kwargs = {}
+
+    if (
+        "force_download"
+        in sig.parameters
+    ):
+
+        kwargs[
+            "force_download"
+        ] = True
+
+    return Path(
+        fn(
+            handle,
+            **kwargs
+        )
+    )
+
+
+def find_file(
+    root,
+    filename
+):
+
+    root = Path(
+        root
+    )
+
+    direct = (
+        root
+        /
+        filename
+    )
+
+    if direct.is_file():
+
+        return direct
+
+    hits = list(
+        root.rglob(
+            filename
+        )
+    )
+
+    assert hits, (
+        f"Could not find {filename} "
+        f"under {root}"
+    )
+
+    if len(
+        hits
+    ) == 1:
+
+        return hits[0]
+
+    exact = [
+        p
+        for p in hits
+        if p.name
+        ==
+        filename
+    ]
+
+    assert exact, (
+        f"Ambiguous search for {filename}"
+    )
+
+    return exact[0]
+
+
+def remote_candidate(
+    root,
+    relative_path
+):
+
+    root = Path(
+        root
+    )
+
+    relative_path = Path(
+        relative_path
+    )
+
+    direct = (
+        root
+        /
+        relative_path
+    )
+
+    if direct.is_file():
+
+        return direct
+
+    suffix = str(
+        relative_path
+    ).replace(
+        "\\",
+        "/"
+    )
+
+    hits = []
+
+    for p in root.rglob(
+        relative_path.name
+    ):
+
+        normalized = str(
+            p
+        ).replace(
+            "\\",
+            "/"
+        )
+
+        if (
+            p.is_file()
+            and
+            normalized.endswith(
+                suffix
+            )
+        ):
+
+            hits.append(
+                p
+            )
+
+    if len(
+        hits
+    ) == 1:
+
+        return hits[0]
+
+    return None
+
+
+def try_get_remote(
+    handle
+):
+
+    try:
+
+        return dataset_download_fresh(
+            handle
+        )
+
+    except Exception:
+
+        return None
+
+
+def upload_stage(
+    note
+):
+
+    kagglehub.dataset_upload(
+        SAVE_HANDLE,
+        str(
+            STAGE
+        ),
+        version_notes=note,
+    )
+
+
+def verify_remote_hashes(
+    hash_map,
+    max_tries=20,
+    sleep_seconds=10,
+):
+
+    last_error = None
+
+    for attempt in range(
+        1,
+        max_tries + 1,
+    ):
+
+        try:
+
+            root = (
+                dataset_download_fresh(
+                    SAVE_HANDLE
+                )
+            )
+
+            okay = True
+
+            for (
+                rel,
+                expected_sha,
+            ) in hash_map.items():
+
+                p = remote_candidate(
+                    root,
+                    rel
+                )
+
+                if p is None:
+
+                    okay = False
+
+                    last_error = (
+                        "missing remote file: "
+                        +
+                        rel
+                    )
+
+                    break
+
+                actual_sha = (
+                    sha256_file(
+                        p
+                    )
+                )
+
+                if (
+                    actual_sha
+                    !=
+                    expected_sha
+                ):
+
+                    okay = False
+
+                    last_error = (
+                        "SHA mismatch: "
+                        +
+                        rel
+                    )
+
+                    break
+
+            if okay:
+
+                for rel in hash_map:
+
+                    print(
+                        "REMOTE_SHA256_VERIFIED:",
+                        rel
+                    )
+
+                return True
+
+        except Exception as exc:
+
+            last_error = repr(
+                exc
+            )
+
+        print(
+            "Waiting for R20 Dataset "
+            f"{attempt}/{max_tries} | "
+            f"{last_error}"
+        )
+
+        time.sleep(
+            sleep_seconds
+        )
+
+    raise RuntimeError(
+        "Remote verification failed: "
+        +
+        str(
+            last_error
+        )
+    )
+
+
+def verify_manifest_dataset(
+    root,
+    label
+):
+
+    manifest_path = find_file(
+        root,
+        "sha256_manifest.json"
+    )
+
+    manifest = json.loads(
+        manifest_path.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    for (
+        filename,
+        expected_sha,
+    ) in manifest.items():
+
+        p = find_file(
+            root,
+            filename
+        )
+
+        actual_sha = (
+            sha256_file(
+                p
+            )
+        )
+
+        assert (
+            actual_sha
+            ==
+            expected_sha
+        ), (
+            f"{label} SHA mismatch: "
+            f"{filename}"
+        )
+
+    print(
+        f"{label}_SHA256_MANIFEST_VERIFIED: PASSED"
+    )
+
+    return manifest
+
+
+# ==========================================================================================
+# 5. VERIFY R18 FROZEN SYSTEM
+# ==========================================================================================
+
+print(
+    "\nVERIFYING R18..."
+)
+
+
+R18_ROOT = (
+    dataset_download_fresh(
+        R18_HANDLE
+    )
+)
+
+
+verify_manifest_dataset(
+    R18_ROOT,
+    "R18"
+)
+
+
+R18_SYSTEM_PATH = (
+    find_file(
+        R18_ROOT,
+        "R18_M2PAR_system_definition.json",
+    )
+)
+
+
+R18_TEST_PATH = (
+    find_file(
+        R18_ROOT,
+        "R18_test239_precommit.json",
+    )
+)
+
+
+r18_system = json.loads(
+    R18_SYSTEM_PATH.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+r18_test = json.loads(
+    R18_TEST_PATH.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+assert (
+    r18_system[
+        "status"
+    ]
+    ==
+    "FROZEN_CANDIDATE_BEFORE_FINAL_TEST"
+)
+
+
+assert (
+    r18_system[
+        "roll"
+    ][
+        "source"
+    ]
+    ==
+    "M0"
+)
+
+
+assert (
+    r18_system[
+        "square_vfov"
+    ][
+        "source"
+    ]
+    ==
+    "M0"
+)
+
+
+assert (
+    r18_system[
+        "pitch"
+    ][
+        "event"
+    ]
+    ==
+    "M1-v4 specialist"
+)
+
+
+assert (
+    r18_system[
+        "pitch"
+    ][
+        "heritage"
+    ]
+    ==
+    "M1-v4 specialist"
+)
+
+
+assert (
+    r18_system[
+        "pitch"
+    ][
+        "natural"
+    ]
+    ==
+    "M0"
+)
+
+
+assert (
+    r18_system[
+        "pitch"
+    ][
+        "purpose_built"
+    ]
+    ==
+    "M0"
+)
+
+
+assert (
+    r18_test[
+        "dataset"
+    ]
+    ==
+    "test239"
+)
+
+
+assert (
+    r18_test[
+        "status_at_R18"
+    ]
+    ==
+    "PRISTINE_UNTOUCHED"
+)
+
+
+print(
+    "R18_SYSTEM_AND_TEST_PRECOMMIT_LOCKED: PASSED"
+)
+
+
+# ==========================================================================================
+# 6. VERIFY R19 FINAL SPECIALIST
+# ==========================================================================================
+
+print(
+    "\nVERIFYING R19..."
+)
+
+
+R19_ROOT = (
+    dataset_download_fresh(
+        R19_HANDLE
+    )
+)
+
+
+R19_PROTOCOL_PATH = find_file(
+    R19_ROOT,
+    "R19_protocol.json"
+)
+
+
+R19_LOCK_PATH = find_file(
+    R19_ROOT,
+    "R19_final_model_lock.json"
+)
+
+
+R19_CRITICAL_PATH = find_file(
+    R19_ROOT,
+    "R19_critical_sha256.json"
+)
+
+
+r19_protocol = json.loads(
+    R19_PROTOCOL_PATH.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+r19_lock = json.loads(
+    R19_LOCK_PATH.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+r19_critical = json.loads(
+    R19_CRITICAL_PATH.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+assert (
+    r19_protocol[
+        "protocol_signature_sha256"
+    ]
+    ==
+    EXPECTED_R19_PROTOCOL_SIGNATURE
+)
+
+
+assert (
+    r19_lock[
+        "status"
+    ]
+    ==
+    "FROZEN_BEFORE_TEST239"
+)
+
+
+assert (
+    r19_lock[
+        "final_epoch"
+    ]
+    ==
+    3
+)
+
+
+assert (
+    r19_lock[
+        "epoch_selected_using_metrics"
+    ]
+    is False
+)
+
+
+assert (
+    r19_lock[
+        "development_MAE_calculated"
+    ]
+    is False
+)
+
+
+assert (
+    r19_lock[
+        "Stable101_used"
+    ]
+    is False
+)
+
+
+assert (
+    r19_lock[
+        "test239_used"
+    ]
+    is False
+)
+
+
+assert (
+    r19_lock[
+        "final_adapter_sha256"
+    ]
+    ==
+    EXPECTED_R19_ADAPTER_SHA256
+)
+
+
+# ----------------------------------------------------------
+# Verify every critical R19 file again
+# ----------------------------------------------------------
+
+for (
+    relative_path,
+    expected_sha,
+) in r19_critical.items():
+
+    p = remote_candidate(
+        R19_ROOT,
+        relative_path
+    )
+
+    assert (
+        p is not None
+    ), (
+        f"Missing R19 critical file: "
+        f"{relative_path}"
+    )
+
+    assert (
+        sha256_file(
+            p
+        )
+        ==
+        expected_sha
+    ), (
+        f"R19 critical SHA mismatch: "
+        f"{relative_path}"
+    )
+
+
+R19_ADAPTER_PATH = (
+    remote_candidate(
+        R19_ROOT,
+        (
+            "epoch_3/"
+            "qwen_lora/"
+            "adapter_model.safetensors"
+        ),
+    )
+)
+
+
+R19_ADAPTER_CONFIG_PATH = (
+    remote_candidate(
+        R19_ROOT,
+        (
+            "epoch_3/"
+            "qwen_lora/"
+            "adapter_config.json"
+        ),
+    )
+)
+
+
+assert (
+    R19_ADAPTER_PATH
+    is not None
+)
+
+
+assert (
+    R19_ADAPTER_CONFIG_PATH
+    is not None
+)
+
+
+assert (
+    sha256_file(
+        R19_ADAPTER_PATH
+    )
+    ==
+    EXPECTED_R19_ADAPTER_SHA256
+)
+
+
+print(
+    "R19_FINAL_SPECIALIST_SHA256_VERIFIED: PASSED"
+)
+
+
+# ==========================================================================================
+# 7. LOCK R20 PROTOCOL BEFORE TEST PERFORMANCE
+# ==========================================================================================
+
+R20_PROTOCOL = {
+
+    "run":
+        "R20",
+
+    "purpose":
+        (
+            "one-time formal test239 "
+            "confirmation of frozen M2-PAR"
+        ),
+
+    "R18_handle":
+        R18_HANDLE,
+
+    "R19_handle":
+        R19_HANDLE,
+
+    "R19_protocol_signature_sha256":
+        EXPECTED_R19_PROTOCOL_SIGNATURE,
+
+    "R19_final_adapter_sha256":
+        EXPECTED_R19_ADAPTER_SHA256,
+
+    "test_rows_expected":
+        239,
+
+    "test_split":
+        "test",
+
+    "test_location_disjoint":
+        True,
+
+    "system":
+        {
+
+            "roll":
+                "M0",
+
+            "pitch_event":
+                "R19 M1-v4 specialist",
+
+            "pitch_heritage":
+                "R19 M1-v4 specialist",
+
+            "pitch_natural":
+                "M0",
+
+            "pitch_purpose_built":
+                "M0",
+
+            "square_vfov":
+                "M0",
+        },
+
+    "pitch_reference_policy":
+        {
+
+            "source":
+                "reports/geocalib_filter_audit.csv",
+
+            "angle_source":
+                "pitch radians",
+
+            "conversion":
+                "degrees(pitch)",
+
+            "reliable_if":
+                (
+                    "status == ok AND "
+                    "pitch finite AND "
+                    "pitch_uncertainty_deg <= 3.0"
+                ),
+
+            "threshold_deg":
+                3.0,
+
+            "must_reproduce_primary_training_policy_before_test":
+                True,
+        },
+
+    "prompt":
+        PROMPT,
+
+    "max_new_tokens":
+        MAX_NEW_TOKENS,
+
+    "decoding":
+        "greedy",
+
+    "primary_conditions":
+        {
+
+            "P1":
+                (
+                    "specialist parse rate = 1.0 "
+                    "on every event/heritage test image"
+                ),
+
+            "P2":
+                (
+                    "M2-PAR reliable-pitch MAE "
+                    "< M0 reliable-pitch MAE"
+                ),
+
+            "P3":
+                "M2-PAR roll == M0 exactly",
+
+            "P4":
+                (
+                    "M2-PAR square-vFoV "
+                    "== M0 exactly"
+                ),
+        },
+
+    "primary_success":
+        "P1 AND P2 AND P3 AND P4",
+
+    "bootstrap":
+        {
+
+            "unit":
+                "location_id",
+
+            "B":
+                BOOTSTRAP_B,
+
+            "role":
+                "descriptive only",
+        },
+
+    "training_performed":
+        False,
+
+    "Stable101_used":
+        False,
+
+    "post_reveal_tuning_allowed":
+        False,
+}
+
+
+R20_PROTOCOL_SIGNATURE = sha256_text(
+    json.dumps(
+        R20_PROTOCOL,
+        sort_keys=True,
+        separators=(
+            ",",
+            ":",
+        ),
+    )
+)
+
+
+R20_PROTOCOL[
+    "protocol_signature_sha256"
+] = (
+    R20_PROTOCOL_SIGNATURE
+)
+
+
+R20_PROTOCOL_PATH = (
+    STAGE
+    /
+    "R20_protocol.json"
+)
+
+
+R20_PROTOCOL_PATH.write_text(
+    json.dumps(
+        R20_PROTOCOL,
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+
+
+print(
+    "\nR20 PROTOCOL SIGNATURE:",
+    R20_PROTOCOL_SIGNATURE
+)
+
+
+# ==========================================================================================
+# 8. PERSISTENCE PREFLIGHT / RE-RUN PROTECTION
+# ==========================================================================================
+
+existing_remote = (
+    try_get_remote(
+        SAVE_HANDLE
+    )
+)
+
+
+if (
+    existing_remote
+    is not None
+):
+
+    old_protocol_path = remote_candidate(
+        existing_remote,
+        "R20_protocol.json",
+    )
+
+    if (
+        old_protocol_path
+        is not None
+    ):
+
+        old_protocol = json.loads(
+            old_protocol_path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert (
+            old_protocol[
+                "protocol_signature_sha256"
+            ]
+            ==
+            R20_PROTOCOL_SIGNATURE
+        ), (
+            "Existing R20 Dataset has "
+            "a different protocol."
+        )
+
+
+    completed_path = remote_candidate(
+        existing_remote,
+        "R20_final_verdict.json",
+    )
+
+    if (
+        completed_path
+        is not None
+    ):
+
+        completed = json.loads(
+            completed_path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        print(
+            "\nR20 ALREADY COMPLETED."
+        )
+
+        print(
+            json.dumps(
+                completed,
+                indent=2,
+            )
+        )
+
+        raise SystemExit(
+            "Final test already exists; "
+            "do not rerun or retune."
+        )
+
+
+else:
+
+    (
+        STAGE
+        /
+        "upload_probe.txt"
+    ).write_text(
+        "R20 final-test persistence preflight",
+        encoding="utf-8",
+    )
+
+    print(
+        "\nPERSISTENCE PREFLIGHT..."
+    )
+
+    upload_stage(
+        (
+            "R20 frozen protocol "
+            "before test239 performance"
+        )
+    )
+
+    verify_remote_hashes(
+        {
+            "R20_protocol.json":
+                sha256_file(
+                    R20_PROTOCOL_PATH
+                )
+        }
+    )
+
+    print(
+        "R20_PERSISTENCE_PREFLIGHT_PASSED"
+    )
+
+
+# ==========================================================================================
+# 9. LOAD TEST MANIFEST + GEOCALIB AUDIT
+#
+# NO PERFORMANCE IS CALCULATED HERE.
+# ==========================================================================================
+
+assert MANIFEST_PATH.is_file()
+
+assert FILTER_AUDIT_PATH.is_file()
+
+assert GEOMETRY_MASTER_PATH.is_file()
+
+assert M0_TRAIN_PATH.is_file()
+
+
+manifest_all = pd.read_csv(
+    MANIFEST_PATH
+)
+
+
+manifest_all[
+    "sha1"
+] = (
+    manifest_all[
+        "sha1"
+    ]
+    .astype(str)
+)
+
+
+manifest_all[
+    "category"
+] = (
+    manifest_all[
+        "category"
+    ]
+    .astype(str)
+    .str.strip()
+    .str.lower()
+)
+
+
+test = (
+    manifest_all[
+        manifest_all[
+            "split"
+        ]
+        .astype(str)
+        .str.lower()
+        ==
+        "test"
+    ]
+    .copy()
+    .reset_index(
+        drop=True
+    )
+)
+
+
+assert len(
+    test
+) == 239
+
+
+assert (
+    test[
+        "sha1"
+    ].nunique()
+    ==
+    239
+)
+
+
+assert (
+    test[
+        "location_id"
+    ].nunique()
+    ==
+    16
+)
+
+
+assert (
+    set(
+        test[
+            "category"
+        ].unique()
+    )
+    ==
+    ALL_CATEGORIES
+)
+
+
+# Four test entities per category.
+test_loc_by_cat = (
+    test
+    .groupby(
+        "category"
+    )[
+        "location_id"
+    ]
+    .nunique()
+    .to_dict()
+)
+
+
+assert (
+    test_loc_by_cat
+    ==
+    {
+        "event": 4,
+        "heritage": 4,
+        "natural": 4,
+        "purpose_built": 4,
+    }
+)
+
+
+filter_all = pd.read_csv(
+    FILTER_AUDIT_PATH
+)
+
+
+filter_all[
+    "id"
+] = (
+    filter_all[
+        "id"
+    ]
+    .astype(str)
+)
+
+
+filter_all[
+    "category"
+] = (
+    filter_all[
+        "category"
+    ]
+    .astype(str)
+    .str.strip()
+    .str.lower()
+)
+
+
+audit_test = (
+    filter_all[
+        filter_all[
+            "split"
+        ]
+        .astype(str)
+        .str.lower()
+        ==
+        "test"
+    ]
+    .copy()
+)
+
+
+assert len(
+    audit_test
+) == 239
+
+
+assert (
+    set(
+        audit_test[
+            "id"
+        ]
+    )
+    ==
+    set(
+        test[
+            "sha1"
+        ]
+    )
+)
+
+
+print(
+    "\nTEST239 STRUCTURE VERIFIED:"
+)
+
+print(
+    "rows = 239"
+)
+
+print(
+    "locations = 16"
+)
+
+print(
+    "4 locations per category = True"
+)
+
+
+# ==========================================================================================
+# 10. CRITICAL TARGET-POLICY PARITY CHECK ON ALREADY-USED PRIMARY TRAIN DATA
+#
+# This MUST pass before the test target is considered valid.
+# ==========================================================================================
+
+with GEOMETRY_MASTER_PATH.open(
+    "r",
+    encoding="utf-8",
+) as f:
+
+    geometry_rows = [
+        json.loads(
+            line
+        )
+        for line in f
+        if line.strip()
+    ]
+
+
+geometry = pd.DataFrame(
+    geometry_rows
+)
+
+
+geometry[
+    "id"
+] = (
+    geometry[
+        "id"
+    ]
+    .astype(str)
+)
+
+
+primary_ids = (
+    geometry.loc[
+        geometry[
+            "label_provenance"
+        ]
+        ==
+        "geocalib_pseudo_parameter_filtered",
+        "id",
+    ]
+    .astype(str)
+    .tolist()
+)
+
+
+assert len(
+    primary_ids
+) == 526
+
+
+m0_train = pd.read_csv(
+    M0_TRAIN_PATH
+)
+
+
+m0_train[
+    "id"
+] = (
+    m0_train[
+        "id"
+    ]
+    .astype(str)
+)
+
+
+dev_pitch = (
+    pd.DataFrame(
+        {
+            "id":
+                primary_ids
+        }
+    )
+    .merge(
+        m0_train[
+            [
+                "id",
+                "target_pitch_deg",
+            ]
+        ],
+        on="id",
+        how="left",
+        validate="one_to_one",
+    )
+    .merge(
+        filter_all[
+            [
+                "id",
+                "status",
+                "pitch",
+                "pitch_uncertainty_deg",
+            ]
+        ],
+        on="id",
+        how="left",
+        validate="one_to_one",
+    )
+)
+
+
+assert len(
+    dev_pitch
+) == 526
+
+
+reconstructed_reliable = (
+
+    dev_pitch[
+        "status"
+    ]
+    .astype(str)
+    .str.lower()
+    .eq(
+        "ok"
+    )
+
+    &
+
+    pd.to_numeric(
+        dev_pitch[
+            "pitch"
+        ],
+        errors="coerce",
+    )
+    .notna()
+
+    &
+
+    pd.to_numeric(
+        dev_pitch[
+            "pitch_uncertainty_deg"
+        ],
+        errors="coerce",
+    )
+    .le(
+        3.0
+    )
+)
+
+
+stored_reliable = (
+    dev_pitch[
+        "target_pitch_deg"
+    ]
+    .notna()
+)
+
+
+assert (
+    int(
+        reconstructed_reliable.sum()
+    )
+    ==
+    234
+), (
+    "Reconstructed primary pitch label "
+    "count is not 234."
+)
+
+
+assert (
+    int(
+        stored_reliable.sum()
+    )
+    ==
+    234
+)
+
+
+assert (
+    reconstructed_reliable
+    .equals(
+        stored_reliable
+    )
+), (
+    "Pitch reliability reconstruction "
+    "does not exactly reproduce the "
+    "stored development supervision mask."
+)
+
+
+reconstructed_pitch_deg = np.degrees(
+    pd.to_numeric(
+        dev_pitch.loc[
+            reconstructed_reliable,
+            "pitch",
+        ],
+        errors="raise",
+    )
+    .to_numpy(
+        dtype=float
+    )
+)
+
+
+stored_pitch_deg = (
+    dev_pitch.loc[
+        stored_reliable,
+        "target_pitch_deg",
+    ]
+    .to_numpy(
+        dtype=float
+    )
+)
+
+
+target_parity_diff = np.abs(
+    reconstructed_pitch_deg
+    -
+    stored_pitch_deg
+)
+
+
+TARGET_PARITY_MAX_DIFF_DEG = float(
+    target_parity_diff.max()
+)
+
+
+assert (
+    TARGET_PARITY_MAX_DIFF_DEG
+    <
+    0.001
+), (
+    "Pitch target reconstruction differs "
+    "from stored development target by "
+    f"{TARGET_PARITY_MAX_DIFF_DEG:.8f} deg."
+)
+
+
+print(
+    "\nTRAIN_TARGET_POLICY_PARITY: PASSED"
+)
+
+print(
+    "primary rows = 526"
+)
+
+print(
+    "pitch labels reproduced = 234"
+)
+
+print(
+    "max target difference deg =",
+    TARGET_PARITY_MAX_DIFF_DEG
+)
+
+
+# ==========================================================================================
+# 11. APPLY THE NOW-VERIFIED REFERENCE POLICY TO TEST239
+#
+# Still no model-performance calculation.
+# ==========================================================================================
+
+test_ref = (
+    test[
+        [
+            "sha1",
+            "category",
+            "location_id",
+            "local_path",
+            "local_sha256",
+        ]
+    ]
+    .rename(
+        columns={
+            "sha1":
+                "id"
+        }
+    )
+    .merge(
+        audit_test[
+            [
+                "id",
+                "status",
+                "pitch",
+                "pitch_uncertainty_deg",
+            ]
+        ],
+        on="id",
+        how="left",
+        validate="one_to_one",
+    )
+)
+
+
+test_ref[
+    "pitch_reliable"
+] = (
+
+    test_ref[
+        "status"
+    ]
+    .astype(str)
+    .str.lower()
+    .eq(
+        "ok"
+    )
+
+    &
+
+    pd.to_numeric(
+        test_ref[
+            "pitch"
+        ],
+        errors="coerce",
+    )
+    .notna()
+
+    &
+
+    pd.to_numeric(
+        test_ref[
+            "pitch_uncertainty_deg"
+        ],
+        errors="coerce",
+    )
+    .le(
+        3.0
+    )
+)
+
+
+test_ref[
+    "target_pitch_deg"
+] = np.where(
+
+    test_ref[
+        "pitch_reliable"
+    ],
+
+    np.degrees(
+        pd.to_numeric(
+            test_ref[
+                "pitch"
+            ],
+            errors="coerce",
+        )
+    ),
+
+    np.nan,
+)
+
+
+# Do not print test target statistics yet.
+
+
+# ==========================================================================================
+# 12. RESOLVE AND SHA-VERIFY ALL 239 TEST IMAGES
+# ==========================================================================================
+
+def resolve_test_image(
+    row
+):
+
+    image_id = str(
+        row[
+            "id"
+        ]
+    )
+
+    category = str(
+        row[
+            "category"
+        ]
+    )
+
+    local_path = str(
+        row[
+            "local_path"
+        ]
+    )
+
+
+    candidates = []
+
+
+    # Candidate 1: manifest relative path.
+    if (
+        local_path
+        and
+        local_path.lower()
+        !=
+        "nan"
+    ):
+
+        normalized = local_path.replace(
+            "\\",
+            "/"
+        )
+
+        candidates.append(
+            DATA_ROOT
+            /
+            normalized
+        )
+
+
+    # Candidate 2: known locked dataset convention.
+    candidates.append(
+        DATA_ROOT
+        /
+        "images"
+        /
+        "test"
+        /
+        category
+        /
+        f"{image_id}.jpg"
+    )
+
+
+    valid = []
+
+    for p in candidates:
+
+        if (
+            p.is_file()
+            and
+            p not in valid
+        ):
+
+            valid.append(
+                p
+            )
+
+
+    if len(
+        valid
+    ) == 1:
+
+        return valid[0]
+
+
+    if len(
+        valid
+    ) > 1:
+
+        # They should resolve to the same file bytes.
+        shas = {
+            sha256_file(
+                p
+            )
+            for p in valid
+        }
+
+        assert (
+            len(
+                shas
+            )
+            ==
+            1
+        )
+
+        return valid[0]
+
+
+    # Last-resort exact basename search.
+    hits = list(
+        DATA_ROOT.rglob(
+            f"{image_id}.jpg"
+        )
+    )
+
+
+    assert (
+        len(
+            hits
+        )
+        ==
+        1
+    ), (
+        f"Could not uniquely resolve "
+        f"test image {image_id}: "
+        f"{hits}"
+    )
+
+
+    return hits[0]
+
+
+image_paths = []
+
+
+print(
+    "\nVERIFYING TEST239 IMAGE FILES..."
+)
+
+
+for _, row in tqdm(
+    test_ref.iterrows(),
+    total=len(
+        test_ref
+    ),
+    desc="test239 SHA256",
+):
+
+    path = resolve_test_image(
+        row
+    )
+
+
+    expected_sha = str(
+        row[
+            "local_sha256"
+        ]
+    ).strip().lower()
+
+
+    actual_sha = (
+        sha256_file(
+            path
+        )
+        .lower()
+    )
+
+
+    assert (
+        expected_sha
+        ==
+        actual_sha
+    ), (
+        f"Image SHA mismatch: "
+        f"{row['id']}"
+    )
+
+
+    image_paths.append(
+        str(
+            path
+        )
+    )
+
+
+test_ref[
+    "resolved_image_path"
+] = (
+    image_paths
+)
+
+
+assert (
+    test_ref[
+        "resolved_image_path"
+    ].notna().all()
+)
+
+
+print(
+    "TEST239_ALL_IMAGE_SHA256_VERIFIED: PASSED"
+)
+
+
+# ==========================================================================================
+# 13. RESTORE PUFFIN-BASE CHECKPOINT
+# ==========================================================================================
+
+from huggingface_hub import (
+    hf_hub_download,
+    snapshot_download,
+)
+
+
+print(
+    "\nRESTORING PUFFIN-BASE..."
+)
+
+
+CKPT = Path(
+    hf_hub_download(
+        repo_id="KangLiao/Puffin",
+        filename="Puffin-Base.pth",
+    )
+)
+
+
+assert CKPT.is_file()
+
+
+print(
+    "PUFFIN_BASE_READY:",
+    round(
+        CKPT.stat().st_size
+        /
+        1024**3,
+        3,
+    ),
+    "GiB"
+)
+
+
+# ==========================================================================================
+# 14. BUILD EXACT PUFFIN-BASE RADIO
+# ==========================================================================================
+
+assert PUFFIN_REPO.exists()
+
+
+if (
+    str(
+        PUFFIN_REPO
+    )
+    not in
+    sys.path
+):
+
+    sys.path.insert(
+        0,
+        str(
+            PUFFIN_REPO
+        )
+    )
+
+
+from src.models.radiov3.hf_model import (
+    RADIOModel
+)
+
+
+# Compatibility with newer Transformers.
+RADIOModel.all_tied_weights_keys = {}
+RADIOModel._tied_weights_keys = {}
+
+
+print(
+    "\nLOADING RADIO ARCHITECTURE..."
+)
+
+
+try:
+
+    radio = (
+        RADIOModel
+        .from_pretrained(
+            "nvidia/C-RADIOv3-H",
+            cache_dir=str(
+                HF_CACHE
+            ),
+            local_files_only=True,
+            torch_dtype=torch.bfloat16,
+        )
+    )
+
+    print(
+        "RADIO_ARCH_FROM_LOCAL_CACHE"
+    )
+
+except Exception as exc:
+
+    print(
+        "Local RADIO architecture cache "
+        "not available; using HF."
+    )
+
+    print(
+        type(
+            exc
+        ).__name__,
+        str(
+            exc
+        )[
+            :200
+        ],
+    )
+
+    radio = (
+        RADIOModel
+        .from_pretrained(
+            "nvidia/C-RADIOv3-H",
+            torch_dtype=torch.bfloat16,
+        )
+    )
+
+
+checkpoint = torch.load(
+    str(
+        CKPT
+    ),
+    map_location="cpu",
+    mmap=True,
+    weights_only=True,
+)
+
+
+state = (
+    checkpoint.get(
+        "state_dict",
+        checkpoint,
+    )
+    if isinstance(
+        checkpoint,
+        dict,
+    )
+    else
+    checkpoint
+)
+
+
+visual_state = {
+
+    k[
+        len(
+            "visual_encoder."
+        ):
+    ]:
+        v
+
+    for k, v
+    in state.items()
+
+    if k.startswith(
+        "visual_encoder."
+    )
+}
+
+
+assert (
+    len(
+        visual_state
+    )
+    ==
+    390
+)
+
+
+radio.load_state_dict(
+    visual_state,
+    strict=True,
+)
+
+
+del visual_state
+del state
+del checkpoint
+
+
+gc.collect()
+
+
+radio = (
+    radio
+    .to(
+        VIS_DEV
+    )
+    .eval()
+    .requires_grad_(
+        False
+    )
+)
+
+
+print(
+    "EXACT_PUFFIN_BASE_RADIO_RESTORED"
+)
+
+
+# ==========================================================================================
+# 15. BUILD TEST239 RADIO TOKEN CACHE
+# ==========================================================================================
+
+@torch.inference_mode()
+def extract_radio_tokens(
+    image_path
+):
+
+    with Image.open(
+        image_path
+    ) as src:
+
+        image = src.convert(
+            "RGB"
+        )
+
+
+    w, h = image.size
+
+
+    side = min(
+        w,
+        h
+    )
+
+
+    left = (
+        w
+        -
+        side
+    ) // 2
+
+
+    top = (
+        h
+        -
+        side
+    ) // 2
+
+
+    image = image.crop(
+        (
+            left,
+            top,
+            left + side,
+            top + side,
+        )
+    )
+
+
+    image = image.resize(
+        (
+            512,
+            512,
+        ),
+        Image.Resampling.BICUBIC,
+    )
+
+
+    x = (
+        torch
+        .from_numpy(
+            np.asarray(
+                image,
+                dtype=np.uint8,
+            )
+            .copy()
+        )
+        .permute(
+            2,
+            0,
+            1,
+        )
+        .float()
+    )
+
+
+    x = (
+        2.0
+        *
+        x
+        /
+        255.0
+        -
+        1.0
+    ).unsqueeze(
+        0
+    ).to(
+        VIS_DEV,
+        dtype=torch.bfloat16,
+    )
+
+
+    _, spatial = radio(
+        (
+            x
+            +
+            1.0
+        )
+        /
+        2.0
+    )
+
+
+    assert (
+        tuple(
+            spatial.shape
+        )
+        ==
+        (
+            1,
+            1024,
+            1280,
+        )
+    )
+
+
+    tokens = (
+        spatial
+        .reshape(
+            1,
+            16,
+            2,
+            16,
+            2,
+            1280,
+        )
+        .permute(
+            0,
+            1,
+            3,
+            2,
+            4,
+            5,
+        )
+        .reshape(
+            256,
+            5120,
+        )
+    )
+
+
+    return (
+        tokens
+        .float()
+        .cpu()
+        .numpy()
+    )
+
+
+print(
+    "\nBUILDING TEST239 EXACT RADIO CACHE..."
+)
+
+
+test_radio = (
+    np.lib.format
+    .open_memmap(
+        TEST_RADIO_CACHE,
+        mode="w+",
+        dtype=np.float32,
+        shape=(
+            239,
+            256,
+            5120,
+        ),
+    )
+)
+
+
+for i, path in enumerate(
+    tqdm(
+        test_ref[
+            "resolved_image_path"
+        ],
+        desc="test239 RADIO",
+    )
+):
+
+    test_radio[
+        i
+    ] = extract_radio_tokens(
+        path
+    )
+
+
+test_radio.flush()
+
+
+TEST_RADIO_SHA = (
+    sha256_file(
+        TEST_RADIO_CACHE
+    )
+)
+
+
+print(
+    "TEST239_RADIO_CACHE_READY:",
+    test_radio.shape
+)
+
+
+print(
+    "TEST239_RADIO_CACHE_SHA256:",
+    TEST_RADIO_SHA
+)
+
+
+# RADIO no longer required.
+del radio
+
+gc.collect()
+
+torch.cuda.empty_cache()
+
+
+# ==========================================================================================
+# 16. QWEN TOKENIZER / CONFIG ASSETS
+# ==========================================================================================
+
+QDIR = (
+    WORK
+    /
+    "qwen_text_assets"
+)
+
+
+QDIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+
+snapshot_download(
+
+    repo_id=(
+        "Qwen/"
+        "Qwen2.5-1.5B-Instruct"
+    ),
+
+    local_dir=str(
+        QDIR
+    ),
+
+    allow_patterns=[
+        "config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+    ],
+
+    max_workers=3,
+)
+
+
+for name in [
+    "config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+]:
+
+    assert (
+        QDIR
+        /
+        name
+    ).is_file()
+
+
+# ==========================================================================================
+# 17. BUILD BASE PROJECTOR + BASE QWEN
+# ==========================================================================================
+
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    AutoModelForCausalLM,
+)
+
+
+tok = (
+    AutoTokenizer
+    .from_pretrained(
+        str(
+            QDIR
+        ),
+        use_fast=True,
+        local_files_only=True,
+    )
+)
+
+
+config = (
+    AutoConfig
+    .from_pretrained(
+        str(
+            QDIR
+        ),
+        local_files_only=True,
+    )
+)
+
+
+config._attn_implementation = (
+    "sdpa"
+)
+
+
+assert (
+    tok.eos_token_id
+    is not None
+)
+
+
+print(
+    "\nRESTORING BASE PROJECTOR + BASE QWEN..."
+)
+
+
+checkpoint = torch.load(
+    str(
+        CKPT
+    ),
+    map_location="cpu",
+    mmap=True,
+    weights_only=True,
+)
+
+
+state = (
+    checkpoint.get(
+        "state_dict",
+        checkpoint,
+    )
+    if isinstance(
+        checkpoint,
+        dict,
+    )
+    else
+    checkpoint
+)
+
+
+projector = nn.Sequential(
+
+    nn.Linear(
+        5120,
+        1536,
+    ),
+
+    nn.SiLU(),
+
+    nn.Linear(
+        1536,
+        1536,
+    ),
+)
+
+
+proj_state = {
+
+    k[
+        len(
+            "projector."
+        ):
+    ]:
+        v
+
+    for k, v
+    in state.items()
+
+    if k.startswith(
+        "projector."
+    )
+}
+
+
+assert (
+    set(
+        proj_state.keys()
+    )
+    ==
+    set(
+        projector
+        .state_dict()
+        .keys()
+    )
+)
+
+
+projector.load_state_dict(
+    proj_state,
+    strict=True,
+)
+
+
+projector = (
+    projector
+    .to(
+        VIS_DEV,
+        dtype=torch.float32,
+    )
+    .eval()
+)
+
+
+projector.requires_grad_(
+    False
+)
+
+
+base_llm = (
+    AutoModelForCausalLM
+    .from_config(
+        config
+    )
+)
+
+
+llm_state = {
+
+    k[
+        len(
+            "llm."
+        ):
+    ]:
+        v
+
+    for k, v
+    in state.items()
+
+    if k.startswith(
+        "llm."
+    )
+}
+
+
+expected_state = (
+    base_llm
+    .state_dict()
+)
+
+
+assert (
+    set(
+        llm_state
+    )
+    ==
+    set(
+        expected_state
+    )
+)
+
+
+for key in expected_state:
+
+    assert (
+        tuple(
+            expected_state[
+                key
+            ].shape
+        )
+        ==
+        tuple(
+            llm_state[
+                key
+            ].shape
+        )
+    )
+
+
+del expected_state
+
+
+base_llm.load_state_dict(
+    llm_state,
+    strict=True,
+)
+
+
+base_llm = (
+    base_llm
+    .to(
+        LLM_DEV,
+        dtype=DTYPE,
+    )
+    .eval()
+)
+
+
+base_llm.requires_grad_(
+    False
+)
+
+
+base_llm.config.use_cache = True
+
+
+del proj_state
+del llm_state
+del state
+del checkpoint
+
+
+gc.collect()
+
+
+print(
+    "PUFFIN_BASE_PROJECTOR_QWEN_READY"
+)
+
+
+# ==========================================================================================
+# 18. STRICT OFFICIAL PROMPT
+# ==========================================================================================
+
+PREFIX_IDS = tok.encode(
+    (
+        "<|im_start|>user\n"
+        "<|vision_start|>"
+    ),
+    add_special_tokens=False,
+)
+
+
+SUFFIX_IDS = tok.encode(
+    (
+        "<|vision_end|>\n"
+        +
+        PROMPT
+        +
+        "<|im_end|>\n"
+        +
+        "<|im_start|>assistant\n"
+    ),
+    add_special_tokens=False,
+)
+
+
+PREFIX_IDS_T = torch.tensor(
+    PREFIX_IDS,
+    dtype=torch.long,
+    device=LLM_DEV,
+).unsqueeze(
+    0
+)
+
+
+SUFFIX_IDS_T = torch.tensor(
+    SUFFIX_IDS,
+    dtype=torch.long,
+    device=LLM_DEV,
+).unsqueeze(
+    0
+)
+
+
+# ==========================================================================================
+# 19. STRICT GREEDY GENERATION
+# ==========================================================================================
+
+@torch.inference_mode()
+def generate_from_cache(
+    language_model,
+    cache_array,
+    positions,
+):
+
+    visual_np = np.stack(
+        [
+            np.asarray(
+                cache_array[
+                    int(
+                        pos
+                    )
+                ],
+                dtype=np.float32,
+            )
+            for pos in positions
+        ],
+        axis=0,
+    )
+
+
+    visual = (
+        torch
+        .from_numpy(
+            visual_np
+        )
+        .to(
+            VIS_DEV
+        )
+    )
+
+
+    image_embeds = (
+        projector(
+            visual
+        )
+        .to(
+            LLM_DEV,
+            dtype=DTYPE,
+        )
+    )
+
+
+    del visual
+    del visual_np
+
+
+    bsz = len(
+        positions
+    )
+
+
+    prefix = (
+        PREFIX_IDS_T
+        .repeat(
+            bsz,
+            1,
+        )
+    )
+
+
+    suffix = (
+        SUFFIX_IDS_T
+        .repeat(
+            bsz,
+            1,
+        )
+    )
+
+
+    prefix_embeds = (
+        language_model
+        .get_input_embeddings()(
+            prefix
+        )
+    )
+
+
+    suffix_embeds = (
+        language_model
+        .get_input_embeddings()(
+            suffix
+        )
+    )
+
+
+    inputs_embeds = torch.cat(
+        [
+            prefix_embeds,
+            image_embeds,
+            suffix_embeds,
+        ],
+        dim=1,
+    )
+
+
+    seq_len = (
+        inputs_embeds.shape[
+            1
+        ]
+    )
+
+
+    attention_mask = torch.ones(
+        (
+            bsz,
+            seq_len,
+        ),
+        dtype=torch.long,
+        device=LLM_DEV,
+    )
+
+
+    position_ids = (
+        torch.arange(
+            seq_len,
+            device=LLM_DEV,
+            dtype=torch.long,
+        )
+        .unsqueeze(
+            0
+        )
+        .repeat(
+            bsz,
+            1,
+        )
+    )
+
+
+    generated = []
+
+    past = None
+
+
+    finished = torch.zeros(
+        bsz,
+        dtype=torch.bool,
+        device=LLM_DEV,
+    )
+
+
+    for _ in range(
+        MAX_NEW_TOKENS
+    ):
+
+        output = language_model(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past,
+            use_cache=True,
+            return_dict=True,
+        )
+
+
+        next_ids = torch.argmax(
+            output.logits[
+                :,
+                -1,
+                :
+            ],
+            dim=-1,
+            keepdim=True,
+        )
+
+
+        if (
+            tok.eos_token_id
+            is not None
+        ):
+
+            eos_fill = torch.full_like(
+                next_ids,
+                tok.eos_token_id,
+            )
+
+
+            next_ids = torch.where(
+                finished[
+                    :,
+                    None
+                ],
+                eos_fill,
+                next_ids,
+            )
+
+
+            finished = (
+                finished
+                |
+                (
+                    next_ids[
+                        :,
+                        0
+                    ]
+                    ==
+                    tok.eos_token_id
+                )
+            )
+
+
+        generated.append(
+            next_ids
+        )
+
+
+        past = (
+            output
+            .past_key_values
+        )
+
+
+        if bool(
+            finished.all()
+        ):
+
+            break
+
+
+        inputs_embeds = (
+            language_model
+            .get_input_embeddings()(
+                next_ids
+            )
+        )
+
+
+        attention_mask = torch.cat(
+            [
+                attention_mask,
+                torch.ones(
+                    (
+                        bsz,
+                        1,
+                    ),
+                    dtype=torch.long,
+                    device=LLM_DEV,
+                ),
+            ],
+            dim=1,
+        )
+
+
+        position_ids = (
+            position_ids[
+                :,
+                -1:
+            ]
+            +
+            1
+        )
+
+
+    generated_ids = torch.cat(
+        generated,
+        dim=1,
+    )
+
+
+    texts = tok.batch_decode(
+        generated_ids.cpu(),
+        skip_special_tokens=True,
+    )
+
+
+    return [
+        t.strip()
+        for t in texts
+    ]
+
+
+# ==========================================================================================
+# 20. CAMERA PARSER
+# ==========================================================================================
+
+NUMBER = (
+    r"[+-]?"
+    r"(?:\d+(?:\.\d+)?|\.\d+)"
+    r"(?:[eE][+-]?\d+)?"
+)
+
+
+CAMERA_RE = re.compile(
+    (
+        rf"camera parameters"
+        rf".{{0,100}}?"
+        rf"are\s*:\s*"
+        rf"({NUMBER})\s*,\s*"
+        rf"({NUMBER})\s*,\s*"
+        rf"({NUMBER})"
+    ),
+    re.I,
+)
+
+
+def parse_camera(
+    text
+):
+
+    matches = list(
+        CAMERA_RE.finditer(
+            str(
+                text
+            )
+        )
+    )
+
+
+    if not matches:
+
+        return None
+
+
+    m = matches[
+        -1
+    ]
+
+
+    rad = [
+        float(
+            m.group(
+                i
+            )
+        )
+        for i in [
+            1,
+            2,
+            3,
+        ]
+    ]
+
+
+    return tuple(
+        math.degrees(
+            x
+        )
+        for x in rad
+    )
+
+
+# ==========================================================================================
+# 21. CRITICAL M0 IMPLEMENTATION PARITY CHECK ON DEVELOPMENT IMAGES
+#
+# No test performance touched yet.
+# ==========================================================================================
+
+print(
+    "\nRUNNING M0 IMPLEMENTATION PARITY CHECK..."
+)
+
+
+dev_cache_hits = list(
+    Path(
+        "/kaggle/input"
+    ).rglob(
+        "radio_tokens_742_float32.npy"
+    )
+)
+
+
+if dev_cache_hits:
+
+    DEV_CACHE_PATH = (
+        dev_cache_hits[
+            0
+        ]
+    )
+
+else:
+
+    dev_root = Path(
+        kagglehub.dataset_download(
+            DEV_RADIO_HANDLE
+        )
+    )
+
+    DEV_CACHE_PATH = find_file(
+        dev_root,
+        "radio_tokens_742_float32.npy",
+    )
+
+
+assert (
+    sha256_file(
+        DEV_CACHE_PATH
+    )
+    ==
+    EXPECTED_DEV_RADIO_SHA256
+)
+
+
+dev_cache = np.load(
+    DEV_CACHE_PATH,
+    mmap_mode="r",
+)
+
+
+assert (
+    dev_cache.shape
+    ==
+    (
+        742,
+        256,
+        5120,
+    )
+)
+
+
+PARITY_POSITIONS = [
+    0,
+    1,
+    2,
+    3,
+]
+
+
+parity_texts = generate_from_cache(
+    base_llm,
+    dev_cache,
+    PARITY_POSITIONS,
+)
+
+
+parity_diffs = []
+
+
+for pos, text in zip(
+    PARITY_POSITIONS,
+    parity_texts,
+):
+
+    parsed = parse_camera(
+        text
+    )
+
+    assert (
+        parsed
+        is not None
+    ), (
+        f"M0 parity parse failed "
+        f"at development row {pos}"
+    )
+
+
+    expected = (
+
+        float(
+            m0_train.iloc[
+                pos
+            ][
+                "m0_roll_deg"
+            ]
+        ),
+
+        float(
+            m0_train.iloc[
+                pos
+            ][
+                "m0_pitch_deg"
+            ]
+        ),
+
+        float(
+            m0_train.iloc[
+                pos
+            ][
+                "m0_square_vfov_deg"
+            ]
+        ),
+    )
+
+
+    parity_diffs.extend(
+        [
+            abs(
+                parsed[i]
+                -
+                expected[i]
+            )
+            for i in range(
+                3
+            )
+        ]
+    )
+
+
+M0_PARITY_MAX_DIFF = max(
+    parity_diffs
+)
+
+
+assert (
+    M0_PARITY_MAX_DIFF
+    <
+    0.01
+), (
+    "Fresh M0 implementation does not "
+    "match frozen M0 predictions closely "
+    "enough. STOP before test reveal. "
+    f"max diff={M0_PARITY_MAX_DIFF}"
+)
+
+
+print(
+    "M0_IMPLEMENTATION_PARITY_PASSED"
+)
+
+print(
+    "max abs diff deg:",
+    M0_PARITY_MAX_DIFF
+)
+
+
+del dev_cache
+
+gc.collect()
+
+torch.cuda.empty_cache()
+
+
+# ==========================================================================================
+# 22. M0 TEST239 INFERENCE
+#
+# Still NO test MAE calculation.
+# ==========================================================================================
+
+M0_PRED_PATH = (
+    STAGE
+    /
+    "R20_M0_test239_predictions.csv"
+)
+
+
+M0_STATUS_PATH = (
+    STAGE
+    /
+    "R20_M0_status.json"
+)
+
+
+remote_now = (
+    try_get_remote(
+        SAVE_HANDLE
+    )
+)
+
+
+reuse_m0 = False
+
+
+if (
+    remote_now
+    is not None
+):
+
+    rp = remote_candidate(
+        remote_now,
+        M0_PRED_PATH.name,
+    )
+
+    rs = remote_candidate(
+        remote_now,
+        M0_STATUS_PATH.name,
+    )
+
+    if (
+        rp is not None
+        and
+        rs is not None
+    ):
+
+        status = json.loads(
+            rs.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        if (
+            sha256_file(
+                rp
+            )
+            ==
+            status.get(
+                "prediction_sha256"
+            )
+        ):
+
+            import shutil
+
+            shutil.copy2(
+                rp,
+                M0_PRED_PATH,
+            )
+
+            shutil.copy2(
+                rs,
+                M0_STATUS_PATH,
+            )
+
+            reuse_m0 = True
+
+
+if reuse_m0:
+
+    print(
+        "\nREUSING VERIFIED REMOTE M0 TEST PREDICTIONS"
+    )
+
+    m0_test_pred = pd.read_csv(
+        M0_PRED_PATH
+    )
+
+else:
+
+    print(
+        "\nRUNNING FROZEN M0 ON TEST239..."
+    )
+
+
+    rows = []
+
+
+    for start in tqdm(
+
+        range(
+            0,
+            239,
+            INFER_BATCH_SIZE,
+        ),
+
+        desc="M0 test239",
+    ):
+
+        positions = list(
+            range(
+                start,
+                min(
+                    start
+                    +
+                    INFER_BATCH_SIZE,
+                    239,
+                ),
+            )
+        )
+
+
+        texts = generate_from_cache(
+            base_llm,
+            test_radio,
+            positions,
+        )
+
+
+        for pos, text in zip(
+            positions,
+            texts,
+        ):
+
+            parsed = parse_camera(
+                text
+            )
+
+
+            row = test_ref.iloc[
+                pos
+            ]
+
+
+            record = {
+
+                "test_position":
+                    pos,
+
+                "id":
+                    row[
+                        "id"
+                    ],
+
+                "category":
+                    row[
+                        "category"
+                    ],
+
+                "location_id":
+                    row[
+                        "location_id"
+                    ],
+
+                "parse_ok":
+                    parsed
+                    is not None,
+
+                "output_text":
+                    text,
+            }
+
+
+            if parsed is None:
+
+                record[
+                    "m0_roll_deg"
+                ] = np.nan
+
+                record[
+                    "m0_pitch_deg"
+                ] = np.nan
+
+                record[
+                    "m0_square_vfov_deg"
+                ] = np.nan
+
+            else:
+
+                record[
+                    "m0_roll_deg"
+                ] = parsed[
+                    0
+                ]
+
+                record[
+                    "m0_pitch_deg"
+                ] = parsed[
+                    1
+                ]
+
+                record[
+                    "m0_square_vfov_deg"
+                ] = parsed[
+                    2
+                ]
+
+
+            rows.append(
+                record
+            )
+
+
+    m0_test_pred = pd.DataFrame(
+        rows
+    )
+
+
+    assert len(
+        m0_test_pred
+    ) == 239
+
+
+    assert (
+        m0_test_pred[
+            "id"
+        ].nunique()
+        ==
+        239
+    )
+
+
+    m0_parse_rate = float(
+        m0_test_pred[
+            "parse_ok"
+        ]
+        .mean()
+    )
+
+
+    # Mechanical prerequisite for complete M2-PAR output.
+    assert (
+        m0_parse_rate
+        ==
+        1.0
+    ), (
+        "M0 test239 parse rate is not "
+        "100%; formal evaluation cannot "
+        "continue with incomplete baseline."
+    )
+
+
+    m0_test_pred.to_csv(
+        M0_PRED_PATH,
+        index=False,
+    )
+
+
+    m0_sha = sha256_file(
+        M0_PRED_PATH
+    )
+
+
+    M0_STATUS_PATH.write_text(
+        json.dumps(
+            {
+
+                "rows":
+                    239,
+
+                "parse_rate":
+                    m0_parse_rate,
+
+                "prediction_sha256":
+                    m0_sha,
+
+                "MAE_calculated":
+                    False,
+
+                "Stable101_used":
+                    False,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+    print(
+        "BACKING UP M0 TEST PREDICTIONS "
+        "BEFORE REVEAL..."
+    )
+
+
+    upload_stage(
+        (
+            "R20 frozen M0 test239 "
+            "predictions; metrics not revealed"
+        )
+    )
+
+
+    verify_remote_hashes(
+        {
+            M0_PRED_PATH.name:
+                m0_sha,
+
+            M0_STATUS_PATH.name:
+                sha256_file(
+                    M0_STATUS_PATH
+                ),
+        }
+    )
+
+
+    print(
+        "R20_M0_TEST239_REMOTE_BACKUP_VERIFIED"
+    )
+
+
+# Always re-audit after load/reuse.
+assert len(
+    m0_test_pred
+) == 239
+
+
+assert (
+    m0_test_pred[
+        "parse_ok"
+    ]
+    .astype(bool)
+    .all()
+)
+
+
+print(
+    "M0 TEST239 PARSE RATE: 1.0"
+)
+
+
+# ==========================================================================================
+# 23. WRAP BASE QWEN WITH EXACT R19 LoRA
+# ==========================================================================================
+
+import peft.import_utils as peft_utils
+
+
+peft_utils.is_torchao_available = (
+    lambda: False
+)
+
+
+try:
+
+    importlib.import_module(
+        "peft.tuners.lora.torchao"
+    ).is_torchao_available = (
+        lambda: False
+    )
+
+except Exception:
+
+    pass
+
+
+from peft import (
+    LoraConfig,
+    get_peft_model,
+    set_peft_model_state_dict,
+)
+
+
+from safetensors.torch import (
+    load_file
+    as
+    load_safetensors,
+)
+
+
+adapter_cfg = json.loads(
+    R19_ADAPTER_CONFIG_PATH.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+# Verify saved adapter config matches R19 freeze.
+assert (
+    int(
+        adapter_cfg[
+            "r"
+        ]
+    )
+    ==
+    8
+)
+
+
+assert (
+    int(
+        adapter_cfg[
+            "lora_alpha"
+        ]
+    )
+    ==
+    16
+)
+
+
+assert (
+    abs(
+        float(
+            adapter_cfg[
+                "lora_dropout"
+            ]
+        )
+        -
+        0.05
+    )
+    <
+    1e-12
+)
+
+
+lora_config = LoraConfig(
+
+    r=8,
+
+    lora_alpha=16,
+
+    lora_dropout=0.05,
+
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+    ],
+
+    bias="none",
+
+    task_type="CAUSAL_LM",
+)
+
+
+m1_model = get_peft_model(
+    base_llm,
+    lora_config,
+)
+
+
+adapter_state = load_safetensors(
+    str(
+        R19_ADAPTER_PATH
+    )
+)
+
+
+set_peft_model_state_dict(
+    m1_model,
+    adapter_state,
+)
+
+
+m1_model = (
+    m1_model
+    .eval()
+)
+
+
+m1_model.config.use_cache = True
+
+
+print(
+    "\nR19_EPOCH3_LORA_LOADED_FOR_FINAL_TEST"
+)
+
+
+print(
+    "adapter SHA256:",
+    sha256_file(
+        R19_ADAPTER_PATH
+    )
+)
+
+
+# ==========================================================================================
+# 24. M1 SPECIALIST INFERENCE
+#
+# ONLY event + heritage are needed by frozen M2-PAR.
+# Still NO MAE calculation.
+# ==========================================================================================
+
+specialist_positions = (
+    test_ref.index[
+        test_ref[
+            "category"
+        ].isin(
+            SPECIALIST_CATEGORIES
+        )
+    ]
+    .astype(int)
+    .tolist()
+)
+
+
+assert (
+    len(
+        specialist_positions
+    )
+    >
+    0
+)
+
+
+M1_PRED_PATH = (
+    STAGE
+    /
+    "R20_R19_specialist_test239_predictions.csv"
+)
+
+
+M1_STATUS_PATH = (
+    STAGE
+    /
+    "R20_R19_specialist_status.json"
+)
+
+
+remote_now = (
+    try_get_remote(
+        SAVE_HANDLE
+    )
+)
+
+
+reuse_m1 = False
+
+
+if (
+    remote_now
+    is not None
+):
+
+    rp = remote_candidate(
+        remote_now,
+        M1_PRED_PATH.name,
+    )
+
+    rs = remote_candidate(
+        remote_now,
+        M1_STATUS_PATH.name,
+    )
+
+    if (
+        rp is not None
+        and
+        rs is not None
+    ):
+
+        status = json.loads(
+            rs.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        if (
+            sha256_file(
+                rp
+            )
+            ==
+            status.get(
+                "prediction_sha256"
+            )
+        ):
+
+            import shutil
+
+            shutil.copy2(
+                rp,
+                M1_PRED_PATH,
+            )
+
+            shutil.copy2(
+                rs,
+                M1_STATUS_PATH,
+            )
+
+            reuse_m1 = True
+
+
+if reuse_m1:
+
+    print(
+        "\nREUSING VERIFIED REMOTE "
+        "SPECIALIST TEST PREDICTIONS"
+    )
+
+    m1_test_pred = pd.read_csv(
+        M1_PRED_PATH
+    )
+
+else:
+
+    print(
+        "\nRUNNING R19 SPECIALIST "
+        "ON EVENT/HERITAGE TEST IMAGES..."
+    )
+
+
+    rows = []
+
+
+    for start in tqdm(
+
+        range(
+            0,
+            len(
+                specialist_positions
+            ),
+            INFER_BATCH_SIZE,
+        ),
+
+        desc="R19 specialist test239",
+    ):
+
+        positions = (
+            specialist_positions[
+                start:
+                start
+                +
+                INFER_BATCH_SIZE
+            ]
+        )
+
+
+        texts = generate_from_cache(
+            m1_model,
+            test_radio,
+            positions,
+        )
+
+
+        for pos, text in zip(
+            positions,
+            texts,
+        ):
+
+            parsed = parse_camera(
+                text
+            )
+
+
+            row = test_ref.iloc[
+                pos
+            ]
+
+
+            assert (
+                row[
+                    "category"
+                ]
+                in
+                SPECIALIST_CATEGORIES
+            )
+
+
+            record = {
+
+                "test_position":
+                    pos,
+
+                "id":
+                    row[
+                        "id"
+                    ],
+
+                "category":
+                    row[
+                        "category"
+                    ],
+
+                "location_id":
+                    row[
+                        "location_id"
+                    ],
+
+                "parse_ok":
+                    parsed
+                    is not None,
+
+                "output_text":
+                    text,
+            }
+
+
+            if parsed is None:
+
+                record[
+                    "m1_roll_deg"
+                ] = np.nan
+
+                record[
+                    "m1_pitch_deg"
+                ] = np.nan
+
+                record[
+                    "m1_square_vfov_deg"
+                ] = np.nan
+
+            else:
+
+                record[
+                    "m1_roll_deg"
+                ] = parsed[
+                    0
+                ]
+
+                record[
+                    "m1_pitch_deg"
+                ] = parsed[
+                    1
+                ]
+
+                record[
+                    "m1_square_vfov_deg"
+                ] = parsed[
+                    2
+                ]
+
+
+            rows.append(
+                record
+            )
+
+
+    m1_test_pred = pd.DataFrame(
+        rows
+    )
+
+
+    assert (
+        len(
+            m1_test_pred
+        )
+        ==
+        len(
+            specialist_positions
+        )
+    )
+
+
+    specialist_parse_rate = float(
+        m1_test_pred[
+            "parse_ok"
+        ]
+        .mean()
+    )
+
+
+    # P1 is a frozen primary condition.
+    assert (
+        specialist_parse_rate
+        ==
+        1.0
+    ), (
+        "R18 P1 failed: specialist parsing "
+        "is not 100% on event/heritage."
+    )
+
+
+    m1_test_pred.to_csv(
+        M1_PRED_PATH,
+        index=False,
+    )
+
+
+    m1_sha = sha256_file(
+        M1_PRED_PATH
+    )
+
+
+    M1_STATUS_PATH.write_text(
+        json.dumps(
+            {
+
+                "rows":
+                    len(
+                        m1_test_pred
+                    ),
+
+                "categories":
+                    [
+                        "event",
+                        "heritage",
+                    ],
+
+                "parse_rate":
+                    specialist_parse_rate,
+
+                "prediction_sha256":
+                    m1_sha,
+
+                "R19_adapter_sha256":
+                    EXPECTED_R19_ADAPTER_SHA256,
+
+                "MAE_calculated":
+                    False,
+
+                "Stable101_used":
+                    False,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+    print(
+        "BACKING UP SPECIALIST TEST "
+        "PREDICTIONS BEFORE REVEAL..."
+    )
+
+
+    upload_stage(
+        (
+            "R20 R19-specialist test239 "
+            "predictions; metrics not revealed"
+        )
+    )
+
+
+    verify_remote_hashes(
+        {
+            M1_PRED_PATH.name:
+                m1_sha,
+
+            M1_STATUS_PATH.name:
+                sha256_file(
+                    M1_STATUS_PATH
+                ),
+        }
+    )
+
+
+    print(
+        "R20_SPECIALIST_TEST239_REMOTE_BACKUP_VERIFIED"
+    )
+
+
+# Re-audit.
+assert (
+    m1_test_pred[
+        "parse_ok"
+    ]
+    .astype(bool)
+    .all()
+)
+
+
+assert (
+    set(
+        m1_test_pred[
+            "category"
+        ]
+    )
+    <=
+    SPECIALIST_CATEGORIES
+)
+
+
+SPECIALIST_PARSE_RATE = float(
+    m1_test_pred[
+        "parse_ok"
+    ]
+    .mean()
+)
+
+
+assert (
+    SPECIALIST_PARSE_RATE
+    ==
+    1.0
+)
+
+
+print(
+    "SPECIALIST TEST PARSE RATE: 1.0"
+)
+
+
+# ==========================================================================================
+# 25. ALL MODEL OUTPUTS ARE NOW FROZEN + BACKED UP
+#
+# ONLY NOW ARE TEST PERFORMANCE METRICS CALCULATED.
+# ==========================================================================================
+
+print(
+    "\n"
+    +
+    "#" * 112
+)
+
+
+print(
+    "R20 FORMAL TEST239 PERFORMANCE REVEAL START"
+)
+
+
+print(
+    "All model outputs were frozen and "
+    "remotely backed up before this point."
+)
+
+
+print(
+    "#" * 112
+)
+
+
+# ==========================================================================================
+# 26. BUILD M2-PAR TEST OUTPUT
+# ==========================================================================================
+
+result = (
+    test_ref[
+        [
+            "id",
+            "category",
+            "location_id",
+            "pitch_reliable",
+            "pitch_uncertainty_deg",
+            "target_pitch_deg",
+        ]
+    ]
+    .copy()
+    .merge(
+        m0_test_pred[
+            [
+                "id",
+                "m0_roll_deg",
+                "m0_pitch_deg",
+                "m0_square_vfov_deg",
+            ]
+        ],
+        on="id",
+        how="left",
+        validate="one_to_one",
+    )
+)
+
+
+m1_pitch_table = (
+    m1_test_pred[
+        [
+            "id",
+            "m1_pitch_deg",
+        ]
+    ]
+    .copy()
+)
+
+
+result = result.merge(
+    m1_pitch_table,
+    on="id",
+    how="left",
+    validate="one_to_one",
+)
+
+
+result[
+    "pitch_route"
+] = np.where(
+
+    result[
+        "category"
+    ].isin(
+        SPECIALIST_CATEGORIES
+    ),
+
+    "R19_M1v4",
+
+    "M0",
+)
+
+
+result[
+    "m2par_roll_deg"
+] = (
+    result[
+        "m0_roll_deg"
+    ]
+)
+
+
+result[
+    "m2par_square_vfov_deg"
+] = (
+    result[
+        "m0_square_vfov_deg"
+    ]
+)
+
+
+result[
+    "m2par_pitch_deg"
+] = np.where(
+
+    result[
+        "category"
+    ].isin(
+        SPECIALIST_CATEGORIES
+    ),
+
+    result[
+        "m1_pitch_deg"
+    ],
+
+    result[
+        "m0_pitch_deg"
+    ],
+)
+
+
+assert (
+    result[
+        "m2par_pitch_deg"
+    ]
+    .notna()
+    .all()
+)
+
+
+# ==========================================================================================
+# 27. PRIMARY CONDITIONS P1 / P3 / P4
+# ==========================================================================================
+
+P1 = bool(
+    SPECIALIST_PARSE_RATE
+    ==
+    1.0
+)
+
+
+P3 = bool(
+    np.array_equal(
+        result[
+            "m2par_roll_deg"
+        ]
+        .to_numpy(),
+        result[
+            "m0_roll_deg"
+        ]
+        .to_numpy(),
+    )
+)
+
+
+P4 = bool(
+    np.array_equal(
+        result[
+            "m2par_square_vfov_deg"
+        ]
+        .to_numpy(),
+        result[
+            "m0_square_vfov_deg"
+        ]
+        .to_numpy(),
+    )
+)
+
+
+assert P3
+
+assert P4
+
+
+# ==========================================================================================
+# 28. PRIMARY PITCH METRIC P2
+# ==========================================================================================
+
+eval_pitch = (
+    result[
+        result[
+            "pitch_reliable"
+        ]
+    ]
+    .copy()
+)
+
+
+assert len(
+    eval_pitch
+) > 0
+
+
+eval_pitch[
+    "m0_abs_error"
+] = np.abs(
+    eval_pitch[
+        "m0_pitch_deg"
+    ]
+    -
+    eval_pitch[
+        "target_pitch_deg"
+    ]
+)
+
+
+eval_pitch[
+    "m2par_abs_error"
+] = np.abs(
+    eval_pitch[
+        "m2par_pitch_deg"
+    ]
+    -
+    eval_pitch[
+        "target_pitch_deg"
+    ]
+)
+
+
+eval_pitch[
+    "delta_abs_error"
+] = (
+    eval_pitch[
+        "m2par_abs_error"
+    ]
+    -
+    eval_pitch[
+        "m0_abs_error"
+    ]
+)
+
+
+M0_PITCH_MAE = float(
+    eval_pitch[
+        "m0_abs_error"
+    ]
+    .mean()
+)
+
+
+M2_PITCH_MAE = float(
+    eval_pitch[
+        "m2par_abs_error"
+    ]
+    .mean()
+)
+
+
+PITCH_DELTA = (
+    M2_PITCH_MAE
+    -
+    M0_PITCH_MAE
+)
+
+
+PITCH_RELATIVE_CHANGE_PCT = (
+    (
+        M2_PITCH_MAE
+        /
+        M0_PITCH_MAE
+    )
+    -
+    1.0
+) * 100.0
+
+
+PITCH_WIN_RATE = float(
+    (
+        eval_pitch[
+            "m2par_abs_error"
+        ]
+        <
+        eval_pitch[
+            "m0_abs_error"
+        ]
+    )
+    .mean()
+)
+
+
+PITCH_EQUAL_RATE = float(
+    np.isclose(
+        eval_pitch[
+            "m2par_abs_error"
+        ],
+        eval_pitch[
+            "m0_abs_error"
+        ],
+        rtol=0,
+        atol=1e-12,
+    )
+    .mean()
+)
+
+
+P2 = bool(
+    M2_PITCH_MAE
+    <
+    M0_PITCH_MAE
+)
+
+
+# ==========================================================================================
+# 29. CATEGORY-LEVEL DESCRIPTIVE RESULTS
+# ==========================================================================================
+
+category_rows = []
+
+
+for category in [
+    "event",
+    "heritage",
+    "natural",
+    "purpose_built",
+]:
+
+    d = (
+        eval_pitch[
+            eval_pitch[
+                "category"
+            ]
+            ==
+            category
+        ]
+        .copy()
+    )
+
+
+    if len(
+        d
+    ) == 0:
+
+        category_rows.append(
+            {
+
+                "category":
+                    category,
+
+                "n":
+                    0,
+
+                "locations":
+                    0,
+
+                "route":
+                    (
+                        "R19_M1v4"
+                        if category
+                        in
+                        SPECIALIST_CATEGORIES
+                        else
+                        "M0"
+                    ),
+
+                "M0_MAE":
+                    np.nan,
+
+                "M2PAR_MAE":
+                    np.nan,
+
+                "delta":
+                    np.nan,
+
+                "win_rate":
+                    np.nan,
+            }
+        )
+
+        continue
+
+
+    category_rows.append(
+        {
+
+            "category":
+                category,
+
+            "n":
+                len(
+                    d
+                ),
+
+            "locations":
+                d[
+                    "location_id"
+                ].nunique(),
+
+            "route":
+                (
+                    "R19_M1v4"
+                    if category
+                    in
+                    SPECIALIST_CATEGORIES
+                    else
+                    "M0"
+                ),
+
+            "M0_MAE":
+                d[
+                    "m0_abs_error"
+                ]
+                .mean(),
+
+            "M2PAR_MAE":
+                d[
+                    "m2par_abs_error"
+                ]
+                .mean(),
+
+            "delta":
+                d[
+                    "delta_abs_error"
+                ]
+                .mean(),
+
+            "win_rate":
+                (
+                    d[
+                        "m2par_abs_error"
+                    ]
+                    <
+                    d[
+                        "m0_abs_error"
+                    ]
+                )
+                .mean(),
+        }
+    )
+
+
+category_summary = pd.DataFrame(
+    category_rows
+)
+
+
+# ==========================================================================================
+# 30. SPECIALIST-SUBSET DESCRIPTIVE RESULT
+# ==========================================================================================
+
+specialist_eval = (
+    eval_pitch[
+        eval_pitch[
+            "category"
+        ]
+        .isin(
+            SPECIALIST_CATEGORIES
+        )
+    ]
+    .copy()
+)
+
+
+SPECIALIST_RELIABLE_N = len(
+    specialist_eval
+)
+
+
+if (
+    SPECIALIST_RELIABLE_N
+    >
+    0
+):
+
+    SPECIALIST_M0_MAE = float(
+        specialist_eval[
+            "m0_abs_error"
+        ]
+        .mean()
+    )
+
+    SPECIALIST_M2_MAE = float(
+        specialist_eval[
+            "m2par_abs_error"
+        ]
+        .mean()
+    )
+
+    SPECIALIST_DELTA = (
+        SPECIALIST_M2_MAE
+        -
+        SPECIALIST_M0_MAE
+    )
+
+else:
+
+    SPECIALIST_M0_MAE = np.nan
+    SPECIALIST_M2_MAE = np.nan
+    SPECIALIST_DELTA = np.nan
+
+
+# ==========================================================================================
+# 31. LOCATION-CLUSTER BOOTSTRAP
+#
+# DESCRIPTIVE ONLY — does not change P2.
+# ==========================================================================================
+
+cluster = (
+    eval_pitch
+    .groupby(
+        "location_id",
+        sort=True,
+    )
+    .agg(
+
+        n=(
+            "m0_abs_error",
+            "size"
+        ),
+
+        sum_m0=(
+            "m0_abs_error",
+            "sum"
+        ),
+
+        sum_m2=(
+            "m2par_abs_error",
+            "sum"
+        ),
+    )
+    .reset_index()
+)
+
+
+cluster_n = (
+    cluster[
+        "n"
+    ]
+    .to_numpy(
+        dtype=float
+    )
+)
+
+
+cluster_m0 = (
+    cluster[
+        "sum_m0"
+    ]
+    .to_numpy(
+        dtype=float
+    )
+)
+
+
+cluster_m2 = (
+    cluster[
+        "sum_m2"
+    ]
+    .to_numpy(
+        dtype=float
+    )
+)
+
+
+K = len(
+    cluster
+)
+
+
+rng = np.random.default_rng(
+    BOOTSTRAP_SEED
+)
+
+
+boot_delta = np.empty(
+    BOOTSTRAP_B,
+    dtype=float,
+)
+
+
+for b in range(
+    BOOTSTRAP_B
+):
+
+    sampled = rng.integers(
+        low=0,
+        high=K,
+        size=K,
+    )
+
+
+    N = (
+        cluster_n[
+            sampled
+        ]
+        .sum()
+    )
+
+
+    m0_b = (
+        cluster_m0[
+            sampled
+        ]
+        .sum()
+        /
+        N
+    )
+
+
+    m2_b = (
+        cluster_m2[
+            sampled
+        ]
+        .sum()
+        /
+        N
+    )
+
+
+    boot_delta[
+        b
+    ] = (
+        m2_b
+        -
+        m0_b
+    )
+
+
+BOOT_CI_LOW, BOOT_CI_HIGH = np.percentile(
+    boot_delta,
+    [
+        2.5,
+        97.5,
+    ],
+)
+
+
+BOOT_PROB_BETTER = float(
+    np.mean(
+        boot_delta
+        <
+        0
+    )
+)
+
+
+# ==========================================================================================
+# 32. FORMAL PRIMARY VERDICT
+# ==========================================================================================
+
+PRIMARY_SUCCESS = bool(
+    P1
+    and
+    P2
+    and
+    P3
+    and
+    P4
+)
+
+
+pitch_summary = pd.DataFrame(
+    [
+        {
+
+            "test_rows":
+                239,
+
+            "test_locations":
+                16,
+
+            "reliable_pitch_rows":
+                len(
+                    eval_pitch
+                ),
+
+            "reliable_pitch_locations":
+                eval_pitch[
+                    "location_id"
+                ].nunique(),
+
+            "specialist_test_rows":
+                len(
+                    specialist_positions
+                ),
+
+            "specialist_reliable_pitch_rows":
+                SPECIALIST_RELIABLE_N,
+
+            "M0_pitch_MAE_deg":
+                M0_PITCH_MAE,
+
+            "M2PAR_pitch_MAE_deg":
+                M2_PITCH_MAE,
+
+            "delta_M2_minus_M0_deg":
+                PITCH_DELTA,
+
+            "relative_change_pct":
+                PITCH_RELATIVE_CHANGE_PCT,
+
+            "M2_win_rate":
+                PITCH_WIN_RATE,
+
+            "equal_rate":
+                PITCH_EQUAL_RATE,
+
+            "cluster_bootstrap_CI95_low":
+                BOOT_CI_LOW,
+
+            "cluster_bootstrap_CI95_high":
+                BOOT_CI_HIGH,
+
+            "cluster_bootstrap_prob_M2_better":
+                BOOT_PROB_BETTER,
+
+            "P1_parse":
+                P1,
+
+            "P2_pitch_MAE":
+                P2,
+
+            "P3_roll_identity":
+                P3,
+
+            "P4_vfov_identity":
+                P4,
+
+            "PRIMARY_SUCCESS":
+                PRIMARY_SUCCESS,
+        }
+    ]
+)
+
+
+# ==========================================================================================
+# 33. SAVE FINAL TEST ARTIFACTS
+# ==========================================================================================
+
+FINAL_PRED_PATH = (
+    STAGE
+    /
+    "R20_test239_final_predictions_and_reference.csv"
+)
+
+
+PITCH_SUMMARY_PATH = (
+    STAGE
+    /
+    "R20_pitch_summary.csv"
+)
+
+
+CATEGORY_SUMMARY_PATH = (
+    STAGE
+    /
+    "R20_pitch_by_category.csv"
+)
+
+
+VERDICT_PATH = (
+    STAGE
+    /
+    "R20_final_verdict.json"
+)
+
+
+PROVENANCE_PATH = (
+    STAGE
+    /
+    "R20_source_integrity.json"
+)
+
+
+result.to_csv(
+    FINAL_PRED_PATH,
+    index=False,
+)
+
+
+pitch_summary.to_csv(
+    PITCH_SUMMARY_PATH,
+    index=False,
+)
+
+
+category_summary.to_csv(
+    CATEGORY_SUMMARY_PATH,
+    index=False,
+)
+
+
+FINAL_VERDICT = {
+
+    "run":
+        "R20",
+
+    "system":
+        "M2-PAR",
+
+    "test":
+        "test239",
+
+    "test_rows":
+        239,
+
+    "test_locations":
+        16,
+
+    "reliable_pitch_rows":
+        len(
+            eval_pitch
+        ),
+
+    "specialist_test_rows":
+        len(
+            specialist_positions
+        ),
+
+    "specialist_reliable_pitch_rows":
+        SPECIALIST_RELIABLE_N,
+
+    "M0_pitch_MAE_deg":
+        M0_PITCH_MAE,
+
+    "M2PAR_pitch_MAE_deg":
+        M2_PITCH_MAE,
+
+    "delta_M2_minus_M0_deg":
+        PITCH_DELTA,
+
+    "relative_change_pct":
+        PITCH_RELATIVE_CHANGE_PCT,
+
+    "pitch_win_rate":
+        PITCH_WIN_RATE,
+
+    "cluster_bootstrap":
+        {
+
+            "unit":
+                "location_id",
+
+            "clusters":
+                K,
+
+            "B":
+                BOOTSTRAP_B,
+
+            "CI95_low":
+                float(
+                    BOOT_CI_LOW
+                ),
+
+            "CI95_high":
+                float(
+                    BOOT_CI_HIGH
+                ),
+
+            "probability_M2_better":
+                BOOT_PROB_BETTER,
+
+            "role":
+                "descriptive only",
+        },
+
+    "P1_specialist_parse_rate_1":
+        P1,
+
+    "P2_pitch_MAE_improves":
+        P2,
+
+    "P3_roll_exact_M0":
+        P3,
+
+    "P4_square_vfov_exact_M0":
+        P4,
+
+    "PRIMARY_SUCCESS":
+        PRIMARY_SUCCESS,
+
+    "post_reveal_tuning_allowed":
+        False,
+
+    "Stable101_reused":
+        False,
+}
+
+
+VERDICT_PATH.write_text(
+    json.dumps(
+        FINAL_VERDICT,
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+
+
+SOURCE_INTEGRITY = {
+
+    "R18_handle":
+        R18_HANDLE,
+
+    "R19_handle":
+        R19_HANDLE,
+
+    "R19_protocol_signature":
+        EXPECTED_R19_PROTOCOL_SIGNATURE,
+
+    "R19_adapter_sha256":
+        EXPECTED_R19_ADAPTER_SHA256,
+
+    "R20_protocol_signature":
+        R20_PROTOCOL_SIGNATURE,
+
+    "manifest_sha256":
+        sha256_file(
+            MANIFEST_PATH
+        ),
+
+    "geocalib_filter_audit_sha256":
+        sha256_file(
+            FILTER_AUDIT_PATH
+        ),
+
+    "test239_radio_cache_sha256":
+        TEST_RADIO_SHA,
+
+    "development_target_policy_parity":
+        True,
+
+    "development_pitch_labels_reproduced":
+        234,
+
+    "development_target_max_diff_deg":
+        TARGET_PARITY_MAX_DIFF_DEG,
+
+    "M0_inference_parity_max_diff_deg":
+        M0_PARITY_MAX_DIFF,
+
+    "test239_image_sha_verified":
+        True,
+
+    "Stable101_used":
+        False,
+}
+
+
+PROVENANCE_PATH.write_text(
+    json.dumps(
+        SOURCE_INTEGRITY,
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+
+
+# ==========================================================================================
+# 34. TOP-LEVEL FINAL SHA MANIFEST
+# ==========================================================================================
+
+final_files = [
+
+    R20_PROTOCOL_PATH,
+
+    M0_PRED_PATH,
+
+    M0_STATUS_PATH,
+
+    M1_PRED_PATH,
+
+    M1_STATUS_PATH,
+
+    FINAL_PRED_PATH,
+
+    PITCH_SUMMARY_PATH,
+
+    CATEGORY_SUMMARY_PATH,
+
+    VERDICT_PATH,
+
+    PROVENANCE_PATH,
+]
+
+
+final_manifest = {}
+
+
+for p in final_files:
+
+    assert p.is_file()
+
+    final_manifest[
+        p.name
+    ] = sha256_file(
+        p
+    )
+
+
+FINAL_MANIFEST_PATH = (
+    STAGE
+    /
+    "R20_sha256_manifest.json"
+)
+
+
+FINAL_MANIFEST_PATH.write_text(
+    json.dumps(
+        final_manifest,
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+
+
+final_manifest[
+    FINAL_MANIFEST_PATH.name
+] = sha256_file(
+    FINAL_MANIFEST_PATH
+)
+
+
+# ==========================================================================================
+# 35. PERMANENT FINAL BACKUP
+# ==========================================================================================
+
+print(
+    "\nUPLOADING FINAL R20 REVEAL..."
+)
+
+
+upload_stage(
+    (
+        "R20 one-time formal test239 reveal; "
+        "frozen M2-PAR; no post-reveal tuning"
+    )
+)
+
+
+verify_remote_hashes(
+    final_manifest
+)
+
+
+print(
+    "R20_FINAL_REMOTE_SHA256_VERIFIED"
+)
+
+
+# ==========================================================================================
+# 36. FINAL HUMAN-READABLE REPORT
+# ==========================================================================================
+
+pd.set_option(
+    "display.max_columns",
+    50
+)
+
+pd.set_option(
+    "display.width",
+    220
+)
+
+
+print(
+    "\n"
+    +
+    "#" * 112
+)
+
+
+print(
+    "R20 ONE-TIME TEST239 FINAL RESULT"
+)
+
+
+print(
+    "#" * 112
+)
+
+
+print(
+    "\nTEST STRUCTURE"
+)
+
+print(
+    "rows:",
+    239
+)
+
+print(
+    "locations:",
+    16
+)
+
+print(
+    "reliable pitch rows:",
+    len(
+        eval_pitch
+    )
+)
+
+print(
+    "reliable pitch locations:",
+    eval_pitch[
+        "location_id"
+    ].nunique()
+)
+
+print(
+    "event/heritage specialist rows:",
+    len(
+        specialist_positions
+    )
+)
+
+print(
+    "event/heritage reliable pitch rows:",
+    SPECIALIST_RELIABLE_N
+)
+
+
+print(
+    "\nPRIMARY PITCH RESULT"
+)
+
+print(
+    "M0 pitch MAE:",
+    f"{M0_PITCH_MAE:.6f}"
+)
+
+print(
+    "M2-PAR pitch MAE:",
+    f"{M2_PITCH_MAE:.6f}"
+)
+
+print(
+    "delta M2-M0:",
+    f"{PITCH_DELTA:+.6f}"
+)
+
+print(
+    "relative change:",
+    f"{PITCH_RELATIVE_CHANGE_PCT:+.4f}%"
+)
+
+print(
+    "M2 win rate:",
+    f"{PITCH_WIN_RATE:.6f}"
+)
+
+
+print(
+    "\nLOCATION-CLUSTER BOOTSTRAP "
+    "(DESCRIPTIVE)"
+)
+
+print(
+    "CI95:",
+    (
+        float(
+            BOOT_CI_LOW
+        ),
+        float(
+            BOOT_CI_HIGH
+        ),
+    )
+)
+
+print(
+    "P(delta < 0):",
+    BOOT_PROB_BETTER
+)
+
+
+print(
+    "\nBY CATEGORY"
+)
+
+
+print(
+    category_summary
+    .to_string(
+        index=False,
+        float_format=lambda x:
+            f"{x:.6f}",
+    )
+)
+
+
+print(
+    "\nPRIMARY PRECOMMITTED CONDITIONS"
+)
+
+print(
+    "P1 specialist parse rate = 1.0:",
+    P1
+)
+
+print(
+    "P2 M2 pitch MAE < M0:",
+    P2
+)
+
+print(
+    "P3 roll exactly M0:",
+    P3
+)
+
+print(
+    "P4 square-vFoV exactly M0:",
+    P4
+)
+
+
+print(
+    "\nPRIMARY_SUCCESS:",
+    PRIMARY_SUCCESS
+)
+
+
+print(
+    "\nFINAL MODEL RULE:"
+)
+
+print(
+    "roll        = M0"
+)
+
+print(
+    "pitch event = R19 specialist"
+)
+
+print(
+    "pitch heritage = R19 specialist"
+)
+
+print(
+    "pitch natural = M0"
+)
+
+print(
+    "pitch purpose_built = M0"
+)
+
+print(
+    "square-vFoV = M0"
+)
+
+
+print(
+    "\nPOST-REVEAL:"
+)
+
+print(
+    "Training allowed: False"
+)
+
+print(
+    "Routing changes allowed: False"
+)
+
+print(
+    "Epoch changes allowed: False"
+)
+
+print(
+    "Blending allowed: False"
+)
+
+print(
+    "Stable101 reuse allowed: False"
+)
+
+
+print(
+    "\nPermanent Dataset:",
+    SAVE_HANDLE
+)
+
+
+print(
+    "#" * 112
+)

@@ -1,0 +1,5 @@
+# Historical source, not a new evaluation
+
+`r20_saved_source_exact.txt` preserves the saved 5,600-line R20 Kaggle script as received (including its data handles and preservation actions). The saved text has an apparent missing closing `]` in the `eval_pitch` filter. `r20_syntax_repaired_UNVERIFIED.py` adds that bracket and only changes this one source span; it passes Python parsing but **has not been run or validated against the actual Kaggle R20 notebook**. Both checksums appear in `SOURCE_SHA256.txt`. They are archival audit artifacts: **do not execute as a generic quickstart**. It requires the original Kaggle files, restricted data and GPU, and a one-time final-reveal workflow. Re-executing to tweak R20 after test observation would invalidate the frozen evaluation interpretation.
+
+Publishing this source requires confirming that the contributor(s) have rights to redistribute any adapted snippets and the historical code. It imports rather than bundles Puffin implementations. The independent tested modules in `/tsrg` make the routing and target logic inspectable without the original data.

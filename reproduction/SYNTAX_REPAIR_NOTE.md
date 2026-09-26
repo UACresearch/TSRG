@@ -1,0 +1,3 @@
+# Minimal transcription repair (not an R20 protocol change)
+
+The exact saved source text failed Python AST parsing because a closing bracket for `result[ ... ]` is absent in the `eval_pitch` selection near original line 4513. The separate `r20_syntax_repaired_UNVERIFIED.py` adds precisely the missing bracket and places `.copy()` on the DataFrame selection. The exact source is retained in `.txt` without alteration. **We cannot establish from this saved text alone whether the Kaggle-executed notebook had this typo**, so this repaired file is not represented as an executed or identical R20 notebook. Recheck the original Kaggle notebook before release.

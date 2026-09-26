@@ -1,0 +1,7 @@
+# Third-party dependencies and permission boundary
+
+- Puffin, Kang Liao et al., [upstream repository](https://github.com/KangLiao929/Puffin), **S-Lab License 1.0**, copyright 2025 S-Lab. This license permits non-commercial source/binary redistribution under stated notice conditions; commercial use or redistribution requires permission. Do not represent TSRG as an official Puffin release. No Puffin weights, files or license terms are replaced here. Review the [actual upstream LICENSE](https://github.com/KangLiao929/Puffin/blob/main/LICENSE) before distributing derived source.
+- GeoCalib, [upstream repository](https://github.com/cvg/GeoCalib). Its code repository carries Apache-2.0; separately confirm model-weights and dataset license terms before redistributing those assets. GeoCalib pseudo-labels may introduce measurement error.
+- Qwen, RADIO, model checkpoints and tourism images each have their own separate rights. **None of these binaries or raw images are distributed by this release candidate.** Any downloaded dependencies remain governed by their own licenses.
+
+`LICENSE` grants MIT permission only over new independent `tsrg/` and `tests/` utilities. It does not relicense `reproduction/r20_saved_source_exact.txt` and `reproduction/r20_syntax_repaired_UNVERIFIED.py`, Puffin code, training images, model artifacts or research dataset contents. Do not publish the historical script until its contributor provenance has been cleared.
