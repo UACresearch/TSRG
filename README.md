@@ -6,6 +6,10 @@ TSRG investigates tourism-domain camera geometry prediction using [Puffin](https
 
 > **Status:** release candidate prepared from the project's saved R20 script. Do not describe this archive as an end-to-end independently reproduced model: a full Kaggle reproduction requires the original external data, checkpoints, prior R18/R19 artifacts and permissions. Do not rerun R20 to select, adjust or re-rank models after its one-time test reveal.
 
+## Executed R20 V3 evidence archive
+
+The final one-time test239 **executed V3 console log** and extracted outcome records are stored in [`results/r20_v3/`](results/r20_v3/README.md). The historical R20 script under `reproduction/` is **not verified as the exact executed V3 notebook**. The actual Kaggle `R20_V3_protocol.json`, `R20_V3_final_verdict.json`, original CSV predictions and checksum manifest remain in the original Kaggle dataset and are not bundled here. See the V3 folder for provenance, numerical evidence, its post-hoc endpoint designation, and the confidence interval containing zero.
+
 ## What is frozen in R20
 
 - Test set: 239 images from 16 test locations (four per tourism category), kept separate from development/model selection.
@@ -45,4 +49,4 @@ Kang Liao and colleagues, *Thinking with Camera: A Unified Multimodal Model for 
 
 ## Release readiness
 
-This draft includes the archived original R20 evaluation source and independent testing utilities, but **not** the historical training notebooks, complete data, trained models or authoritative numerical output artifacts. Add those only after source integrity, attribution and distribution rights have been checked. Do not fill missing benchmark tables using remembered or approximated numbers.
+This draft includes an archived historical R20 source, independent testing utilities, and a byte-exact saved V3 execution console log with explicitly labeled extracted verdict/category records, but **not** the historical training notebooks, complete data, trained models or original authoritative Kaggle JSON/CSV output artifacts. Add those only after source integrity, attribution and distribution rights have been checked. Do not fill missing benchmark tables using remembered or approximated numbers.
