@@ -1,6 +1,6 @@
 # 将 R20 V3 原始 Kaggle 文件移交到 GitHub
 
-**状态：等待 Kaggle 原件导出。** 当前仓库中的 `results/r20_v3/` 保存了原始控制台日志和明确标注的提取结果，尚不包含 Kaggle 原始 JSON/CSV 文件。
+**归档状态：原始文件已导入。** 以下是供后续重新导出时参考的历史操作步骤。10 份原始 JSON/CSV 文件现在位于 [`results/r20_v3/originals/`](../results/r20_v3/originals/R20_V3_protocol.json)，校验见 [`ORIGINALS_SHA256_AUDIT.md`](../results/r20_v3/ORIGINALS_SHA256_AUDIT.md)。
 
 1. 在 Kaggle 打开你自己的 Notebook，右侧点击 **Add Input**，添加 `caolitong/tourism-puffin-r20-one-time-batch1-r11-v3` 数据集。
 2. 打开本仓库的 [导出脚本](../tools/export_r20_v3_originals.py)，把文件的完整 Python 内容复制到 Kaggle 一个代码单元中运行。**不需在个人电脑安装 Python，也不用重新执行 R20 模型推理。**

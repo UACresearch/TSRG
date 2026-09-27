@@ -1,0 +1,9 @@
+{
+  "phase": "R19",
+  "rows": 121,
+  "protocol_signature": "469d53cb01b21869002a814c4420c5b9c3ac78ed5e505f5335ecf70f4b19111b",
+  "csv_sha256": "e1023171dc9ad33c2212a50ee972fbee7d4ba7e4790b14a1a7f4a3a941e0abdc",
+  "prediction_frozen": true,
+  "MAE_calculated": false,
+  "Stable101_used": false
+}

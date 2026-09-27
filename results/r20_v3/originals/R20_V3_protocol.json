@@ -1,0 +1,48 @@
+{
+  "run": "R20_FINAL_ONE_TIME_TEST239_V3",
+  "correction": "Pre-inference V2 used 293-token vision-wrapper prompt; restore exact R11 291-token -200 placeholder prompt",
+  "aborted_v2_signature": "55f2499c3ea93870df0c9e6c0b0b32ff675eaaa9299402f20ea6aab9b5537155",
+  "aborted_v2_protocol_sha256": "99a39de1fb83dbb9e31afb428f836bbac160f1a2c174d3eb1d7422a83fb713e5",
+  "pretest_signature": "f352b7ce9359732f15ff837e9766c03f761360c0a279687e07770d5bbd876234",
+  "R19_protocol_signature": "f83708c4201d3af5e02b2b4623f4723799f3dcdaa6230111473173e5028013f7",
+  "R19_adapter_sha256": "1dc8afa37c4947d30f58e9ae3aa260c76730dd7201a042f98fcbfd97ae0da8b0",
+  "runtime": {
+    "torch": "2.10.0+cu128",
+    "transformers": "5.0.0",
+    "peft": "0.19.1",
+    "dtype": "bfloat16",
+    "projector": "float32",
+    "attention": "sdpa",
+    "batch_size": 1
+  },
+  "prompt": "Describe the image in detail. Then reason its spatial distribution and estimate its camera parameters (roll, pitch, and field-of-view).",
+  "prompt_template": "LEFT + [-200]*256 + RIGHT; LEFT = <|im_start|>user\\n; RIGHT = \\n+PROMPT+<|im_end|>\\n<|im_start|>assistant\\n",
+  "prompt_length": 291,
+  "image_placeholders": 256,
+  "max_new_tokens": 512,
+  "decoding": "greedy",
+  "routes": {
+    "roll": "M0",
+    "square_vfov": "M0",
+    "event_pitch": "R19",
+    "heritage_pitch": "R19",
+    "natural_pitch": "M0",
+    "purpose_built_pitch": "M0"
+  },
+  "primary": {
+    "P1": "all event/heritage specialist test predictions parse",
+    "P2": "M2-PAR reliable pitch MAE < M0 reliable pitch MAE",
+    "P3": "M2-PAR roll == M0 exactly",
+    "P4": "M2-PAR square-vFoV == M0 exactly"
+  },
+  "bootstrap": {
+    "unit": "location_id",
+    "B": 10000,
+    "seed": 20260926,
+    "role": "descriptive only"
+  },
+  "training": false,
+  "Stable101": false,
+  "post_reveal_tuning": false,
+  "signature": "469d53cb01b21869002a814c4420c5b9c3ac78ed5e505f5335ecf70f4b19111b"
+}

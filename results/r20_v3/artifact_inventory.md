@@ -1,6 +1,6 @@
 # Original R20 V3 Kaggle artifact inventory
 
-The saved log identifies these original remote files and reports `REMOTE_SHA256_VERIFIED` for them. The files listed below have **not** been copied into this GitHub directory and their original hashes cannot be reconstructed from the console listing alone.
+The saved log identifies these original Kaggle files and reports `REMOTE_SHA256_VERIFIED` for them. The user-provided dataset ZIP now supplies all ten files; each has been copied unchanged to [`originals/`](originals/R20_V3_protocol.json). All nine files named by the embedded original SHA256 manifest pass checksum validation; the manifest's own SHA256 is listed in [`ORIGINALS_SHA256_AUDIT.md`](ORIGINALS_SHA256_AUDIT.md).
 
 | Kaggle file | Evidence |
 |---|---|
@@ -17,4 +17,4 @@ The saved log identifies these original remote files and reports `REMOTE_SHA256_
 
 Source dataset URL: https://www.kaggle.com/datasets/caolitong/tourism-puffin-r20-one-time-batch1-r11-v3
 
-This private GitHub upload contains the saved console log and exact/fidelity-labeled transcriptions, not those original Kaggle files.
+This private GitHub repository now includes both the saved console log/log-derived excerpts and the ten original source files from the uploaded Kaggle dataset ZIP. The originals remain distinguished by their unmodified filenames in `results/r20_v3/originals/`.

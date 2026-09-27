@@ -1,22 +1,25 @@
 # R20 V3 final one-time evaluation — evidence archive
 
-This folder records the **executed R20 V3** test239 evaluation evidence. It is separate from the earlier historical R20 script in `/reproduction`.
+This folder records the **executed R20 V3 test239 evaluation**, separate from the historical R20 working script under `reproduction/`.
 
-## Provenance and file scope
+## Source of files
 
-- `executed_console_log_exact.md` is a byte-identical copy of the saved Kaggle console log from the research archive. It includes the complete visible execution trace and final verdict. Its original SHA256 is `f2a6d3eb48685f0c52f165e6e1b5a2fed5f1b5dc34a24467ce2694aa79f7a4d3` (39,508 bytes); Git blob SHA1 is `0ddee7625caefb19acfc5234116b6bc188b32bf5`.
-- `verdict_extracted_from_console.json` is a verbatim JSON object extracted from the saved log, **not** the original Kaggle `R20_V3_final_verdict.json` file.
-- `category_results_extracted_from_console.csv` transcribes only the printed four-category table (six-decimal display precision), **not** the original Kaggle `R20_V3_category_summary.csv`.
-- `artifact_inventory.md` records the original Kaggle dataset and its file names, as visible in the log.
+The user supplied the original dataset ZIP `tourism-puffin-r20-one-time-batch1-r11-v3.zip`. Its 10 original entries were added **byte-for-byte**, under their original names in [`originals/`](originals/R20_V3_protocol.json), without rewriting metadata, rounding numerical values, or modifying line endings. The supplied original `R20_V3_sha256_manifest.json` lists nine other files and all nine SHA256 checksums matched. The checksum of the supplied ZIP, every file SHA256 and the manifest's scope are recorded in [`ORIGINALS_SHA256_AUDIT.md`](ORIGINALS_SHA256_AUDIT.md). The Kaggle console log previously recorded remote checksum verification; this GitHub transfer verifies the submitted ZIP against its embedded manifest, and does **not** independently re-download from the current Kaggle API.
 
-Original Kaggle artifact location: `caolitong/tourism-puffin-r20-one-time-batch1-r11-v3` (access and original file bytes are not provided by this GitHub repository). The log reports remote SHA256 verification of those Kaggle files; those remote originals have **not** been independently downloaded or compared against GitHub extracts in this archival upload. The original full execution code/notebook was also not present among the available saved files, so do not identify the older R20 script as the exact V3 execution script.
+- `originals/R20_V3_protocol.json`, `originals/R20_V3_final_verdict.json`, `originals/R20_V3_final_predictions_reference.csv`, `originals/R20_V3_sha256_manifest.json` are the original files as supplied.
+- `originals/` also contains the original M0 and R19 prediction/status files, category summary and summary CSV.
+- `executed_console_log_exact.md` is a byte-identical copy of the saved console log; SHA256 `f2a6d3eb48685f0c52f165e6e1b5a2fed5f1b5dc34a24467ce2694aa79f7a4d3`.
+- `verdict_extracted_from_console.json` and `category_results_extracted_from_console.csv` are **older log-derived excerpts**, retained for provenance and not a replacement for the full original files.
+- `artifact_inventory.md` lists the originals. The earlier historical script in `reproduction/` is **not verified as the exact executed V3 notebook**.
+
+Source Kaggle dataset: https://www.kaggle.com/datasets/caolitong/tourism-puffin-r20-one-time-batch1-r11-v3
 
 ## Results and interpretation
 
-The test covered 239 images from 16 locations. The pitch quality policy selected 84 examples at 15 locations for the paired endpoint. M0 pitch MAE was 1.1041807334510654° and M2-PAR pitch MAE was 1.084518827231383°, a descriptive 1.780678255291592% relative MAE decrease. Location-cluster bootstrap (10,000 draws) gave a 95% interval of [−0.06167604083244341°, 0.02339181905185608°] for M2-PAR minus M0: **the interval contains zero**, so this does not establish a statistically significant overall advantage. The four frozen procedural checks passed according to the saved log. This is a **post-hoc pitch-only endpoint after R18**; the log explicitly says the earlier R14 original primary endpoint remains FAILED. There was no training or Stable101 reuse in V3, and no post-reveal tuning is permitted.
+The original result reports 239 test images from 16 locations; 84 pitch-quality-qualified examples at 15 locations for the paired endpoint. M0 pitch MAE was 1.1041807334510654° and M2-PAR pitch MAE was 1.084518827231383°, a descriptive 1.780678255291592% relative MAE decrease. The location-cluster bootstrap (10,000 draws) 95% interval for M2-PAR minus M0 is [−0.06167604083244341°, 0.02339181905185608°]: **the interval contains zero**, so this does not establish a statistically significant overall advantage. Four frozen procedural checks passed under their recorded criteria. The original final verdict explicitly calls this a **post-hoc R18 pitch-only test** and notes that the original R14 primary endpoint remains FAILED. No training or Stable101 reuse occurred in V3, and post-reveal tuning is not allowed.
 
-The source record uses a strict corrected R11 prompt; its protocol signature is `469d53cb01b21869002a814c4420c5b9c3ac78ed5e505f5335ecf70f4b19111b`. The previously archived `docs/R20_PROTOCOL.md` is historical and should be read with this V3 evidence archive, not substituted for it.
+The exact executed V3 protocol signature is `469d53cb01b21869002a814c4420c5b9c3ac78ed5e505f5335ecf70f4b19111b`.
 
-## Exclusions
+## Distribution scope
 
-No Puffin/GeoCalib weights, LoRA adapters, original tourism photographs, raw predictions, source dataset manifests, protected test examples, original Kaggle protocol JSON or original remote checksum manifest are redistributed here. The saved console log and derivative transcription must be reviewed for authorship, third-party rights and data-disclosure scope **before making this private repository public**.
+This remains a **private research archive**. The prediction files include image IDs, destination/location category identifiers, and model output text; assess data rights and whether test output may be public before changing visibility. Model weights, LoRA adapters, underlying tourism photos, protected test imagery, original training data, and the exact executed notebook source are not included.

@@ -1,0 +1,9 @@
+{
+  "phase": "M0",
+  "rows": 239,
+  "protocol_signature": "469d53cb01b21869002a814c4420c5b9c3ac78ed5e505f5335ecf70f4b19111b",
+  "csv_sha256": "48c32971b4fe454fa0465a3e1c0d0bf6599630ba87fa64b3ec0abc30fb4d88d8",
+  "prediction_frozen": true,
+  "MAE_calculated": false,
+  "Stable101_used": false
+}
