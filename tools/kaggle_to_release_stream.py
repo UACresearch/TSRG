@@ -115,11 +115,54 @@ def upload(release, path, digest):
     raise RuntimeError('Upload failed after retries: ' + path.name)
 
 
+def already_archived(release, dataset, version, manifest_name):
+    """Skip a completed backup only after verifying its manifest AND every Release asset."""
+    assets = asset_map(release)
+    asset = assets.get(manifest_name)
+    if asset is None:
+        return False
+    if asset.get('state') != 'uploaded' or not asset.get('digest'):
+        raise RuntimeError('Existing manifest is incomplete or has no GitHub SHA256 digest.')
+    with tempfile.TemporaryDirectory(prefix='tsrg_manifest_preflight_') as tmp:
+        subprocess.run(
+            ['gh', 'release', 'download', TAG, '-R', REPO,
+             '--pattern', manifest_name, '--dir', tmp],
+            check=True, capture_output=True, text=True
+        )
+        data_bytes = (pathlib.Path(tmp) / manifest_name).read_bytes()
+    actual_digest = 'sha256:' + hashlib.sha256(data_bytes).hexdigest()
+    if actual_digest.lower() != asset['digest'].lower():
+        raise RuntimeError('Existing manifest does not match its GitHub asset SHA256.')
+    manifest = json.loads(data_bytes)
+    if (manifest.get('kaggle_dataset') != dataset or
+            manifest.get('kaggle_dataset_version') != version or
+            manifest.get('schema') != 'TSRG-Kaggle-stream-split-v1'):
+        raise RuntimeError('Existing manifest has incompatible dataset, version or schema.')
+    parts = manifest.get('parts')
+    if not isinstance(parts, list) or not parts:
+        raise RuntimeError('Existing manifest contains no split parts.')
+    if sum(part['bytes'] for part in parts) != manifest.get('archive_bytes'):
+        raise RuntimeError('Existing manifest part sizes do not add up.')
+    for index, part in enumerate(parts, 1):
+        if part.get('sequence') != index:
+            raise RuntimeError('Existing manifest has invalid part order.')
+        remote = assets.get(part['name'])
+        if (remote is None or remote.get('state') != 'uploaded' or
+                remote.get('size') != part['bytes'] or
+                str(remote.get('digest', '')).lower() != 'sha256:' + part['sha256'].lower()):
+            raise RuntimeError('An existing part is missing or differs from the manifest: ' + part['name'])
+    print('ALREADY BACKED UP: existing manifest and all %d parts verified for %s version %s; no redownload necessary.' %
+          (len(parts), dataset, version), flush=True)
+    return True
+
+
 def stream_archive(dataset, version, stage, release, version_detail):
     url = f'{KAGGLE}/download/{dataset}'
     headers = kaggle_headers()
     archive_name = f'TSRG_Kaggle_{stage}_v{version}_download.zip'
     manifest_name = f'TSRG_Kaggle_{stage}_v{version}_MANIFEST.json'
+    if already_archived(release, dataset, version, manifest_name):
+        return
     parts = []
     full = hashlib.sha256()
     total = 0
