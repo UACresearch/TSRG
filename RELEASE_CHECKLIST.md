@@ -1,7 +1,8 @@
 # Before clicking GitHub Publish
 
 - [ ] Confirm names, author order, institution and coauthors' consent; update the project author/citation fields.
-- [ ] Verify the historical R20 source and its SHA256 against the original Kaggle notebook/source; check that it contains no copied third-party material outside allowed license terms.
+- [x] Recover and SHA256-verify the exact executed R18, R19, and R20 V3 source cells from the uploaded 278-cell Kaggle Notebook; R20 V3's saved verdict agrees exactly with the original result JSON.
+- [ ] Audit the recovered source code and full historical notebook for third-party redistribution rights before publishing; the earlier archived historical R20 script is a different source artifact.
 - [ ] Inspect paths, image/location metadata, repository history and notebook outputs for personal information, tokens or unauthorized private content.
 - [ ] Read and include Puffin's latest relevant S-Lab license notice if any Puffin-derived file is being redistributed.
 - [ ] Confirm rights for any external result CSV or data manifest before adding it. Raw tourist photographs, original weights, adapters and private caches stay excluded by default.

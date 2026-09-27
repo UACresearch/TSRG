@@ -6,9 +6,13 @@ TSRG investigates tourism-domain camera geometry prediction using [Puffin](https
 
 > **Status:** release candidate prepared from the project's saved R20 script. Do not describe this archive as an end-to-end independently reproduced model: a full Kaggle reproduction requires the original external data, checkpoints, prior R18/R19 artifacts and permissions. Do not rerun R20 to select, adjust or re-rank models after its one-time test reveal.
 
+## Verified executed Notebook source cells
+
+The actual Kaggle Notebook supplied by the project owner contains **R18 freeze (cell 260)**, **R19 full-development specialist training (cell 261)** and **R20 V3 final one-time evaluation (cell 276)**. Their unmodified source text is archived with source SHA256 and execution provenance in [`reproduction/executed_notebook_cells/`](reproduction/executed_notebook_cells/README.md). The V3 saved output exactly matches the original uploaded Kaggle verdict JSON. These files are source-cell excerpts from a 278-cell Notebook, not the whole Notebook or a fully standalone quickstart. Do not rerun the frozen test endpoint.
+
 ## Executed R20 V3 evidence archive
 
-The final one-time test239 **executed V3 console log**, its verbatim extracts, and the **original Kaggle JSON/CSV files copied byte-for-byte from the user-supplied dataset ZIP** are stored in [`results/r20_v3/`](results/r20_v3/README.md). See [`originals/`](results/r20_v3/originals/R20_V3_protocol.json) and the [SHA256 audit](results/r20_v3/ORIGINALS_SHA256_AUDIT.md). All nine entries of the original Kaggle checksum manifest matched the corresponding archive bytes, and every uploaded Git blob was checked against the original bytes. The historical R20 script under `reproduction/` is **not verified as the exact executed V3 notebook**; this output archive does not supply trained model weights or an end-to-end reproduction.
+The final one-time test239 **executed V3 console log**, its verbatim extracts, and the **original Kaggle JSON/CSV files copied byte-for-byte from the user-supplied dataset ZIP** are stored in [`results/r20_v3/`](results/r20_v3/README.md). See [`originals/`](results/r20_v3/originals/R20_V3_protocol.json) and the [SHA256 audit](results/r20_v3/ORIGINALS_SHA256_AUDIT.md). All nine entries of the original Kaggle checksum manifest matched the corresponding archive bytes, and every uploaded Git blob was checked against the original bytes. The earlier historical R20 source in `reproduction/` is **not the verified executed V3 cell**; the actual final V3 cell source is archived separately in `reproduction/executed_notebook_cells/`. This output archive still does not supply trained model weights or an end-to-end reproduction.
 
 ## What is frozen in R20
 

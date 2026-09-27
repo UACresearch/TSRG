@@ -10,7 +10,7 @@ The user supplied the original dataset ZIP `tourism-puffin-r20-one-time-batch1-r
 - `originals/` also contains the original M0 and R19 prediction/status files, category summary and summary CSV.
 - `executed_console_log_exact.md` is a byte-identical copy of the saved console log; SHA256 `f2a6d3eb48685f0c52f165e6e1b5a2fed5f1b5dc34a24467ce2694aa79f7a4d3`.
 - `verdict_extracted_from_console.json` and `category_results_extracted_from_console.csv` are **older log-derived excerpts**, retained for provenance and not a replacement for the full original files.
-- `artifact_inventory.md` lists the originals. The earlier historical script in `reproduction/` is **not verified as the exact executed V3 notebook**.
+- `artifact_inventory.md` lists the originals. The older standalone source in `reproduction/` is separate from the verified executed V3 cell, which is now archived without edits at [`reproduction/executed_notebook_cells/R20_V3_final_cell276_EXACT_SOURCE.py`](../../reproduction/executed_notebook_cells/R20_V3_final_cell276_EXACT_SOURCE.py). That source cell's printed verdict equals the original archived JSON.
 
 Source Kaggle dataset: https://www.kaggle.com/datasets/caolitong/tourism-puffin-r20-one-time-batch1-r11-v3
 
@@ -22,4 +22,4 @@ The exact executed V3 protocol signature is `469d53cb01b21869002a814c4420c5b9c3a
 
 ## Distribution scope
 
-This remains a **private research archive**. The prediction files include image IDs, destination/location category identifiers, and model output text; assess data rights and whether test output may be public before changing visibility. Model weights, LoRA adapters, underlying tourism photos, protected test imagery, original training data, and the exact executed notebook source are not included.
+This remains a **private research archive**. The prediction files include image IDs, destination/location category identifiers, and model output text; assess data rights and whether test output may be public before changing visibility. Model weights, LoRA adapters, underlying tourism photos, protected test imagery, original training data, and the full 278-cell notebook is not bundled as a complete file, but its three R18/R19/R20 V3 executed source cells are archived separately.
