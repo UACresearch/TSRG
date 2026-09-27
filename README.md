@@ -8,7 +8,7 @@ TSRG investigates tourism-domain camera geometry prediction using [Puffin](https
 
 ## Verified executed Notebook source cells
 
-The actual Kaggle Notebook supplied by the project owner contains **R18 freeze (cell 260)**, **R19 full-development specialist training (cell 261)** and **R20 V3 final one-time evaluation (cell 276)**. Their unmodified source text is archived with source SHA256 and execution provenance in [`reproduction/executed_notebook_cells/`](reproduction/executed_notebook_cells/README.md). The V3 saved output exactly matches the original uploaded Kaggle verdict JSON. These files are source-cell excerpts from a 278-cell Notebook, not the whole Notebook or a fully standalone quickstart. Do not rerun the frozen test endpoint.
+The actual Kaggle Notebook supplied by the project owner contains **R18 freeze (cell 260)**, **R19 full-development specialist training (cell 261)** and **R20 V3 final one-time evaluation (cell 276)**. Their unmodified source text is archived with source SHA256 and execution provenance in [`reproduction/executed_notebook_cells/`](reproduction/executed_notebook_cells/README.md). **Both complete original notebook snapshots are now retained byte-for-byte together in [`reproduction/notebooks/notebook2aa6f4bd81_original_snapshots.zip`](reproduction/notebooks/notebook2aa6f4bd81_original_snapshots.zip)**, with original-member checksums and version distinctions documented in its [README](reproduction/notebooks/README.md). The V3 saved output exactly matches the original uploaded Kaggle verdict JSON. The standalone `.py` files remain source-cell excerpts, not independent quickstarts; the full `.ipynb` snapshots are in the separately linked ZIP. Do not rerun the frozen test endpoint.
 
 ## Original R19 full-development archive
 
@@ -35,7 +35,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-This validates our general-purpose code only. It does not measure the released model's accuracy or redo test239. To perform a historical audit, compare the archived script hash in [`reproduction/SOURCE_SHA256.txt`](reproduction/SOURCE_SHA256.txt), check the upstream source licenses and inspect the original persisted `R20_protocol.json`, `R20_final_verdict.json`, predictions and SHA256 manifest in the project's Kaggle dataset. The original R20 V3 output files listed above are now bundled under `results/r20_v3/originals/`; this does not provide model checkpoints, full source notebooks, or original training data.
+This validates our general-purpose code only. It does not measure the released model's accuracy or redo test239. To perform a historical audit, compare the archived script hash in [`reproduction/SOURCE_SHA256.txt`](reproduction/SOURCE_SHA256.txt), check the upstream source licenses and inspect the original persisted `R20_protocol.json`, `R20_final_verdict.json`, predictions and SHA256 manifest in the project's Kaggle dataset. The original R20 V3 output files listed above are now bundled under `results/r20_v3/originals/`; this does not provide model checkpoints or original training data. Both complete original Notebook snapshots are archived separately.
 
 ## Camera target schema
 
@@ -57,4 +57,4 @@ Kang Liao and colleagues, *Thinking with Camera: A Unified Multimodal Model for 
 
 ## Release readiness
 
-This private draft includes an archived historical R20 source, independently authored utilities, a byte-exact saved V3 execution console log, and the ten **original Kaggle V3 output files** imported from a user-provided data export with checksum validation. It still does **not** include historical training notebooks, complete training data, trained model weights or licensed tourist photographs. Confirm redistribution rights before any public release. Add those only after source integrity, attribution and distribution rights have been checked. Do not fill missing benchmark tables using remembered or approximated numbers.
+This private draft includes an archived historical R20 source, independently authored utilities, a byte-exact saved V3 execution console log, and the ten **original Kaggle V3 output files** imported from a user-provided data export with checksum validation. It now includes both original historical Kaggle Notebook snapshots, but does **not** include complete training data, pretrained third-party weights, or licensed tourist photographs. The R19 adapter's original binary remains in its canonical Kaggle archive. Confirm redistribution rights before any public release. Add those only after source integrity, attribution and distribution rights have been checked. Do not fill missing benchmark tables using remembered or approximated numbers.

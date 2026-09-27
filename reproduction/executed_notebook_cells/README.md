@@ -1,6 +1,6 @@
 # Original Kaggle Notebook source-cell archive — R18 / R19 / R20 V3
 
-These three `.py` files are the exact UTF-8 **source text of three executed code cells** extracted from the user-uploaded `notebook2aa6f4bd81 (1).ipynb` with no header inserted or code edited. They are archival snippets from a larger Notebook, **not independent one-click programs**, and must not be rerun to change the frozen test239 outcome. This directory is not a claim that the remaining 275 notebook cells or original external Kaggle artifacts have been copied.
+These three `.py` files are the exact UTF-8 **source text of three executed code cells** extracted from the user-uploaded `notebook2aa6f4bd81 (1).ipynb` with no header inserted or code edited. They are archival snippets from a larger Notebook, **not independent one-click programs**, and must not be rerun to change the frozen test239 outcome. These source-cell excerpts do not include the other 275 cells inline; the two complete original Notebook snapshots are stored separately in `reproduction/notebooks/notebook2aa6f4bd81_original_snapshots.zip`.
 
 Full source notebook SHA256: `2e4ed571902122423ed626d57d6af7e659f40a7aaf20871142b239595736b929`; 278 total cells.
 
