@@ -2,13 +2,17 @@
 
 **R20 release candidate (research code; not an official Puffin release).**
 
-TSRG investigates tourism-domain camera geometry prediction using [Puffin](https://github.com/KangLiao929/Puffin) as the foundation model and [GeoCalib](https://github.com/cvg/GeoCalib) for selected pseudo-reference labels. This archive documents the *frozen* R20 evaluation protocol and provides independently authored, CPU-testable geometry conversion, routing and evaluation utilities. It **does not** contain Puffin model weights, LoRA weights, copyrighted tourism photographs, or full training data. It now includes the original uploaded R20 V3 Kaggle output JSON/CSV and original checksum manifest, separately archived under `results/r20_v3/originals/`.
+TSRG investigates tourism-domain camera geometry prediction using [Puffin](https://github.com/KangLiao929/Puffin) as the foundation model and [GeoCalib](https://github.com/cvg/GeoCalib) for selected pseudo-reference labels. This archive documents the *frozen* R20 evaluation protocol and provides independently authored, CPU-testable geometry conversion, routing and evaluation utilities. It **does not** contain Puffin foundation weights, original R19 LoRA binary weights, copyrighted tourism photographs, or full training data. It now includes the original uploaded R20 V3 Kaggle output JSON/CSV and original checksum manifest, separately archived under `results/r20_v3/originals/`.
 
 > **Status:** release candidate prepared from the project's saved R20 script. Do not describe this archive as an end-to-end independently reproduced model: a full Kaggle reproduction requires the original external data, checkpoints, prior R18/R19 artifacts and permissions. Do not rerun R20 to select, adjust or re-rank models after its one-time test reveal.
 
 ## Verified executed Notebook source cells
 
 The actual Kaggle Notebook supplied by the project owner contains **R18 freeze (cell 260)**, **R19 full-development specialist training (cell 261)** and **R20 V3 final one-time evaluation (cell 276)**. Their unmodified source text is archived with source SHA256 and execution provenance in [`reproduction/executed_notebook_cells/`](reproduction/executed_notebook_cells/README.md). The V3 saved output exactly matches the original uploaded Kaggle verdict JSON. These files are source-cell excerpts from a 278-cell Notebook, not the whole Notebook or a fully standalone quickstart. Do not rerun the frozen test endpoint.
+
+## Original R19 full-development archive
+
+The owner's original R19 Kaggle ZIP was verified (14/14 embedded file checks), and its 17 original small text entries, all 23 original file digests, and the model-lock provenance are archived in [`results/r19/`](results/r19/README.md). The six larger binary files, including the frozen Epoch-3 LoRA and optimizer-resume checkpoints, remain in the canonical original Kaggle dataset; see the [binary artifact inventory](results/r19/BINARY_ARTIFACTS.md). The executable source cell is in `reproduction/executed_notebook_cells/`.
 
 ## Executed R20 V3 evidence archive
 

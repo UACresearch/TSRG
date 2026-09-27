@@ -1,0 +1,144 @@
+{
+  "source_zip_name": "tourism-puffin-r19-m2par-full-pitch-specialist-v1.zip",
+  "source_zip_sha256": "674f53da5fdf65901f81cdaea80d2d18b4c3db16462e7c21fa1386c17db6d3b6",
+  "entries": [
+    {
+      "file": "R19_critical_sha256.json",
+      "bytes": 500,
+      "sha256": "38488e837359f11ebb988a362da8a3dd6dcc54dfa6ddb736175c5e28de287512",
+      "type": "text"
+    },
+    {
+      "file": "R19_final_model_lock.json",
+      "bytes": 1262,
+      "sha256": "6c570d0b12ddb9651b31df16b2430c13cacfe4a10fa4d2ba4817e326a67690ff",
+      "type": "text"
+    },
+    {
+      "file": "R19_protocol.json",
+      "bytes": 1747,
+      "sha256": "5d69873c9c82af90b670e3f40d0a1985fb5caa258a248c7a801df850b1c1db85",
+      "type": "text"
+    },
+    {
+      "file": "epoch_1/epoch_summary.json",
+      "bytes": 311,
+      "sha256": "d9dab26d376d511f6b184237132d0a71c2d9d85544244e38f8f53452f4bd01ce",
+      "type": "text"
+    },
+    {
+      "file": "epoch_1/optimizer_resume.pt",
+      "bytes": 17625749,
+      "sha256": "7517af677e4e122563fba5356d7b8ed4ed24fb7badb2357231a0e640818f900f",
+      "type": "binary"
+    },
+    {
+      "file": "epoch_1/qwen_lora/README.md",
+      "bytes": 5300,
+      "sha256": "7e911ff8ef22b5abb80c4fe140c485cfb40327d1216242237eae1eb369a86f91",
+      "type": "text"
+    },
+    {
+      "file": "epoch_1/qwen_lora/adapter_config.json",
+      "bytes": 1102,
+      "sha256": "324d0d7ec6b086d06f04e4cef22629139fd86d9f6d5d1268a7b5fb62276c12a1",
+      "type": "text"
+    },
+    {
+      "file": "epoch_1/qwen_lora/adapter_model.safetensors",
+      "bytes": 8745704,
+      "sha256": "8095560bc5d2d819b386413b94c20eb75ccd15a428613de37ee12dfca15a1261",
+      "type": "binary"
+    },
+    {
+      "file": "epoch_1/sha256.json",
+      "bytes": 320,
+      "sha256": "7a10d9e4a126301c96316b4e7fa19655a6c0e739f198eb8ed97494fcbf0f2f42",
+      "type": "text"
+    },
+    {
+      "file": "epoch_2/epoch_summary.json",
+      "bytes": 311,
+      "sha256": "dca7f0a417264b83b64e668b8b5265510349929621d9fe6b9ee34e062de0f228",
+      "type": "text"
+    },
+    {
+      "file": "epoch_2/optimizer_resume.pt",
+      "bytes": 17625749,
+      "sha256": "b17eaf54242b33570935dcc5de3f65b35844c0374f8fa74ce48e953064b96030",
+      "type": "binary"
+    },
+    {
+      "file": "epoch_2/qwen_lora/README.md",
+      "bytes": 5300,
+      "sha256": "7e911ff8ef22b5abb80c4fe140c485cfb40327d1216242237eae1eb369a86f91",
+      "type": "text"
+    },
+    {
+      "file": "epoch_2/qwen_lora/adapter_config.json",
+      "bytes": 1102,
+      "sha256": "324d0d7ec6b086d06f04e4cef22629139fd86d9f6d5d1268a7b5fb62276c12a1",
+      "type": "text"
+    },
+    {
+      "file": "epoch_2/qwen_lora/adapter_model.safetensors",
+      "bytes": 8745704,
+      "sha256": "2c25a25852676be97bdaaf065f9e47e5fe74fcceb0ae34a3fabd04bfbad2714e",
+      "type": "binary"
+    },
+    {
+      "file": "epoch_2/sha256.json",
+      "bytes": 320,
+      "sha256": "83efbdce25509e36822eb30c08b4f035565c18cba6470a239012138c96b38e21",
+      "type": "text"
+    },
+    {
+      "file": "epoch_3/epoch_summary.json",
+      "bytes": 311,
+      "sha256": "ff9ff73b100a108756279ddcec6187f7555383ef7dd81d6c29dd36aac2f8230f",
+      "type": "text"
+    },
+    {
+      "file": "epoch_3/optimizer_resume.pt",
+      "bytes": 17625749,
+      "sha256": "73ddb9b88f12c5953eecad2f8500265c75379d9cb842bb75dc59f50f34613e73",
+      "type": "binary"
+    },
+    {
+      "file": "epoch_3/qwen_lora/README.md",
+      "bytes": 5300,
+      "sha256": "7e911ff8ef22b5abb80c4fe140c485cfb40327d1216242237eae1eb369a86f91",
+      "type": "text"
+    },
+    {
+      "file": "epoch_3/qwen_lora/adapter_config.json",
+      "bytes": 1102,
+      "sha256": "324d0d7ec6b086d06f04e4cef22629139fd86d9f6d5d1268a7b5fb62276c12a1",
+      "type": "text"
+    },
+    {
+      "file": "epoch_3/qwen_lora/adapter_model.safetensors",
+      "bytes": 8745704,
+      "sha256": "1dc8afa37c4947d30f58e9ae3aa260c76730dd7201a042f98fcbfd97ae0da8b0",
+      "type": "binary"
+    },
+    {
+      "file": "epoch_3/sha256.json",
+      "bytes": 320,
+      "sha256": "263766d73aeef45c9f9e32c77c22370d5ce47a0650ef4b589f1b568ff375d48f",
+      "type": "text"
+    },
+    {
+      "file": "train_history.csv",
+      "bytes": 131,
+      "sha256": "03dcca627655da7b66ac7651ffb10aa9551eebb1578a9dc0bcdb7f98b8b30fb9",
+      "type": "text"
+    },
+    {
+      "file": "upload_probe.txt",
+      "bytes": 25,
+      "sha256": "5a5fb4bc88e4123ff2d7e9a333c0e27a3e6c0699d203df1b994e98f53c6003a4",
+      "type": "text"
+    }
+  ]
+}
