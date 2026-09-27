@@ -1,0 +1,7 @@
+{
+  "R19_protocol.json": "5d69873c9c82af90b670e3f40d0a1985fb5caa258a248c7a801df850b1c1db85",
+  "train_history.csv": "03dcca627655da7b66ac7651ffb10aa9551eebb1578a9dc0bcdb7f98b8b30fb9",
+  "R19_final_model_lock.json": "6c570d0b12ddb9651b31df16b2430c13cacfe4a10fa4d2ba4817e326a67690ff",
+  "epoch_3/qwen_lora/adapter_model.safetensors": "1dc8afa37c4947d30f58e9ae3aa260c76730dd7201a042f98fcbfd97ae0da8b0",
+  "epoch_3/epoch_summary.json": "ff9ff73b100a108756279ddcec6187f7555383ef7dd81d6c29dd36aac2f8230f"
+}

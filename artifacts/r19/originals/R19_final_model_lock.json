@@ -1,0 +1,30 @@
+{
+  "run": "R19",
+  "system": "M2-PAR",
+  "component": "M1-v4 full-development pitch specialist",
+  "status": "FROZEN_BEFORE_TEST239",
+  "train_primary": 526,
+  "train_aux": 216,
+  "train_total": 742,
+  "training_epochs": 3,
+  "final_epoch": 3,
+  "epoch_selected_using_metrics": false,
+  "development_MAE_calculated": false,
+  "final_adapter_relative_path": "epoch_3/qwen_lora/adapter_model.safetensors",
+  "final_adapter_sha256": "1dc8afa37c4947d30f58e9ae3aa260c76730dd7201a042f98fcbfd97ae0da8b0",
+  "protocol_signature_sha256": "f83708c4201d3af5e02b2b4623f4723799f3dcdaa6230111473173e5028013f7",
+  "R18_training_plan_sha256": "b8f10d22d64aa0e02b4acf4518c058fe8cb2849436aee81890d032586c357bf9",
+  "R18_system_definition_sha256": "3852702a6e01b23a7b7ac0c0a9f8be9f3f4fd7a413a676d02f5606cd0d00260f",
+  "R18_test_precommit_sha256": "e028bb4a228245684965da42969ec20d452f767eedd813bd1a4b178cb9bb408b",
+  "use_in_M2PAR": {
+    "roll": "DO NOT USE; M0",
+    "pitch_event": "USE",
+    "pitch_heritage": "USE",
+    "pitch_natural": "DO NOT USE; M0",
+    "pitch_purpose_built": "DO NOT USE; M0",
+    "square_vfov": "DO NOT USE; M0"
+  },
+  "Stable101_used": false,
+  "test239_used": false,
+  "next_action": "ONE formal test239 evaluation under frozen R18 M2-PAR protocol"
+}

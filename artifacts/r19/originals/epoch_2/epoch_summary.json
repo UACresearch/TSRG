@@ -1,0 +1,14 @@
+{
+  "epoch": 2,
+  "train_primary": 526,
+  "train_aux": 216,
+  "train_total": 742,
+  "mean_weighted_ce": 1.350009553395513,
+  "optimizer_steps": 47,
+  "projector_trainable": false,
+  "geometry_head": false,
+  "geometry_loss": false,
+  "MAE_calculated": false,
+  "Stable101_used": false,
+  "test239_used": false
+}
