@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       dataset:
-        description: 'Which Kaggle dataset to back up (run once for each)'
+        description: 'Select geometry for remaining backup; radio is already archived'
         required: true
         type: choice
+        default: geometry
         options:
-          - radio
           - geometry
+          - radio
       version:
         description: 'Optional exact Kaggle dataset version; blank means automatically resolve and pin the current version'
         required: false
