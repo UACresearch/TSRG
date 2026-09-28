@@ -64,6 +64,20 @@ def validate_assets(source_dir: Path, base_checkpoint: Path, adapter_dir: Path) 
         raise ValueError(f"R19 adapter SHA256 mismatch: {actual}")
 
 
+def choose_compute_dtype(torch_module):
+    """Select native BF16 on both devices or FP16 on older dual-GPU cards.
+
+    The frozen R20 benchmark used BF16; FP16 is a separate new-photo
+    compatibility path, not a replay of that benchmark.
+    """
+    has_native_bf16 = all(
+        torch_module.cuda.get_device_capability(i)[0] >= 8
+        for i in (0, 1)
+    )
+    return torch_module.bfloat16 if has_native_bf16 else torch_module.float16
+
+
+
 class CameraInference:
     """Two-GPU runtime following R20 V3's vision / language model split."""
 
@@ -86,7 +100,7 @@ class CameraInference:
 
         self.np, self.torch = np, torch
         self.visual_device, self.llm_device = torch.device("cuda:0"), torch.device("cuda:1")
-        self.dtype = torch.bfloat16
+        self.dtype = choose_compute_dtype(torch)
         source_str = str(source_dir.resolve())
         if source_str not in sys.path:
             sys.path.insert(0, source_str)
