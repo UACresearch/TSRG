@@ -2,6 +2,18 @@
 
 本页用于**新照片**的推理。已冻结的 R20 V3 test239 结果保持原样；这里的示例不会重新运行那一批正式测试，也不涉及训练或挑选模型。第一版只输出相机参数，不包含图片生成网页。
 
+## 0. 下载代码
+
+有权访问本私有仓库的成员可以在终端运行（首次下载时按 GitHub 提示完成登录）：
+
+```bash
+git clone --branch feature/inference-download-v1 --single-branch https://github.com/caolitong0717/TSRG.git
+cd TSRG
+git clone https://github.com/KangLiao929/Puffin.git upstream/Puffin
+```
+
+上面的第二个 `git clone` 将上游源代码放在 `upstream/Puffin/Puffin/`；它不包含本研究的 LoRA 权重。开发分支通过真实 GPU 检查和发布权限审核后，才会合并到主分支及制作正式 Release。
+
 ## 1. 准备文件
 
 需要自行下载或准备：
