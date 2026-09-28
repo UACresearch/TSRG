@@ -28,7 +28,7 @@ git clone https://github.com/KangLiao929/Puffin.git upstream/Puffin
 
 ## 2. 环境
 
-原始 R20 V3 执行环境是 **两块 CUDA GPU**（视觉编码器使用 cuda:0，语言模型使用 cuda:1），PyTorch 2.10.0、Transformers 5.0.0 和 PEFT 0.19.1。本开发版沿用这一分配，当前未验证单显卡或纯 CPU 的大型模型推理。
+原始 R20 V3 执行环境是 **两块 CUDA GPU**（视觉编码器使用 cuda:0，语言模型使用 cuda:1），PyTorch 2.10.0、Transformers 5.0.0 和 PEFT 0.19.1。本开发版沿用这一分配，并根据两块 GPU 的计算能力选择精度：支持原生 BF16 时采用 BF16，Tesla T4 等较早显卡采用 FP16。南开大学图书馆新照片已在双 T4、FP16 的 Kaggle Notebook 中成功运行 M0 和 R19 两个预测分支并保存 JSON；独立 GitHub 命令行入口仍待相同环境的端到端检查。该次运行不替代 R20 的 BF16 正式评估。当前未验证单显卡或纯 CPU 的大型模型推理。
 
 先安装适配本机驱动和 CUDA 的 **GPU 版 PyTorch 2.10.0**，参考 [PyTorch 官方安装方法](https://pytorch.org/get-started/locally/)，再在 TSRG 根目录运行：
 
@@ -56,7 +56,7 @@ python -m tsrg.inference \
 
 景点类别 `--category` 由使用者提供，当前可选 `event`（活动）、`heritage`（遗产）、`natural`（自然）、`purpose_built`（专门建造）。该版没有通用图片景点类型识别器。计算逻辑自动取 M0 的 Roll 与方形裁剪垂直 FoV；仅在活动、遗产类取 R19 的 Pitch，其余类型采用 M0 的 Pitch。输出 JSON 包含三个角度制参数和来源标记。
 
-该程序复用了经过审计的 R20 V3 模型配置、291-token 提示词、中心方形裁剪、视觉特征形状、适配器校验和文本角度解析逻辑。作为新的下载推理入口，它还需要进行**真实 GPU 端到端冒烟测试**，在通过前属于开发版本，不宣称已复现完整独立测试指标。CPU 单元测试仅覆盖参数转换、资源校验与路由规则。
+该程序复用了经过审计的 R20 V3 模型配置、291-token 提示词、中心方形裁剪、视觉特征形状、适配器校验和文本角度解析逻辑。作为新的下载命令行入口，它还需要独立完成**真实 GPU 端到端冒烟测试**，在通过前属于开发版本，不宣称已复现完整独立测试指标。CPU 单元测试仅覆盖参数转换、资源校验与路由规则。
 
 ## 4. 文件许可与来源
 
