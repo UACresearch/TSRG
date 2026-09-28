@@ -1,0 +1,95 @@
+# TSRG 相机参数预测下载版（开发分支）
+
+本页用于**新照片**的推理。已冻结的 R20 V3 test239 结果保持原样；这里的示例不会重新运行那一批正式测试，也不涉及训练或挑选模型。第一版只输出相机参数，不包含图片生成网页。
+
+## 0. 下载代码
+
+有权访问本私有仓库的成员可以在终端运行（首次下载时按 GitHub 提示完成登录）：
+
+```bash
+git clone --branch feature/inference-download-v1 --single-branch https://github.com/caolitong0717/TSRG.git
+cd TSRG
+git clone https://github.com/KangLiao929/Puffin.git upstream/Puffin
+```
+
+上面的第二个 `git clone` 将上游源代码放在 `upstream/Puffin/Puffin/`；它不包含本研究的 LoRA 权重。开发分支通过真实 GPU 检查和发布权限审核后，才会合并到主分支及制作正式 Release。
+
+## 1. 准备文件
+
+需要自行下载或准备：
+
+1. 原始代码：[上游 Puffin](https://github.com/KangLiao929/Puffin)，使用仓库内部的 `Puffin/` 子目录（此目录应含 `src/models/radiov3/hf_model.py`）。
+2. 基础模型 `Puffin-Base.pth`：从 [上游官方模型页面](https://huggingface.co/KangLiao/Puffin) 获取。仅从官方来源取得，遵守相关许可。
+3. 本研究冻结的 R19 Epoch 3 LoRA：从 [本仓库的私有研究归档 Release](https://github.com/caolitong0717/TSRG/releases/tag/archive-20260927) 的 `tourism-puffin-r19-m2par-full-pitch-specialist-v1.zip` 解压，找到 `epoch_3/qwen_lora/`，里面应有 `adapter_model.safetensors` 与 `adapter_config.json`。原始 Kaggle 备份同样可用。
+
+程序自动核对最终 LoRA 文件 SHA256。这个适配器约 8.75 MB；不要把整个约 73 MB 归档 ZIP 当作模型路径传给程序。R19 的历史训练日志与优化器恢复文件无需用于普通推理。
+
+本仓库保持私有，资料授权审核完成之前不要修改为公开发布。
+
+## 2. 环境
+
+原始 R20 V3 执行环境是 **两块 CUDA GPU**（视觉编码器使用 cuda:0，语言模型使用 cuda:1），PyTorch 2.10.0、Transformers 5.0.0 和 PEFT 0.19.1。本开发版沿用这一分配，并根据两块 GPU 的计算能力选择精度：支持原生 BF16 时采用 BF16，Tesla T4 等较早显卡采用 FP16。南开大学图书馆新照片已在双 T4、FP16 的 Kaggle Notebook 中成功运行 M0 和 R19 两个预测分支并保存 JSON；独立 GitHub 命令行入口也已在同一双 T4、FP16 环境中使用寒山寺新照片完成端到端检查，退出码为 0，成功保存 JSON，并与前述 Notebook 数值一致。该次运行不替代 R20 的 BF16 正式评估。当前未验证单显卡或纯 CPU 的大型模型推理。
+
+先安装适配本机驱动和 CUDA 的 **GPU 版 PyTorch 2.10.0**，参考 [PyTorch 官方安装方法](https://pytorch.org/get-started/locally/)，再在 TSRG 根目录运行：
+
+```bash
+python -m pip install -r requirements-inference.txt
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+依赖文件与原始上游教程的包版本有区别。不要直接用上游的旧版 requirements 覆盖这里记录的 R20 V3 环境。第一次运行需联网获取 RADIO 的公开基础结构、Qwen 的文本配置与分词器；基础模型权重使用传入的本地文件。
+
+## 3. 新照片推理
+
+先运行 `python -m tsrg.inference --help` 查看命令。下面是示例路径，按实际解压目录修改：
+
+```bash
+python -m tsrg.inference \
+  --image "my_photos/attraction.jpg" \
+  --category heritage \
+  --puffin-source "upstream/Puffin/Puffin" \
+  --base-checkpoint "models/Puffin-Base.pth" \
+  --adapter-dir "models/r19/epoch_3/qwen_lora" \
+  --output "outputs/attraction_camera.json"
+```
+
+景点类别 `--category` 由使用者提供，当前可选 `event`（活动）、`heritage`（遗产）、`natural`（自然）、`purpose_built`（专门建造）。该版没有通用图片景点类型识别器。计算逻辑自动取 M0 的 Roll 与方形裁剪垂直 FoV；仅在活动、遗产类取 R19 的 Pitch，其余类型采用 M0 的 Pitch。输出 JSON 包含三个角度制参数和来源标记。
+
+该程序复用了经过审计的 R20 V3 模型配置、291-token 提示词、中心方形裁剪、视觉特征形状、适配器校验和文本角度解析逻辑。新的下载命令行入口已通过一次**双 T4 / FP16 的真实 GPU 端到端冒烟测试**，仍属于私有开发版本，后续需完成授权与发布检查；不宣称已复现完整独立测试指标。CPU 单元测试仅覆盖参数转换、资源校验与路由规则。
+
+## 已完成的新照片 Notebook 冒烟测试（双 T4 / FP16）
+
+以下由项目所有者在原 Kaggle Notebook 的当前会话中实际运行，并按其运行日志记录。它们验证模型加载、文本解析及两条预设路由路径；没有相机参数真值，也没有调用本仓库独立 CLI 入口。两张测试照片的图像文件保持在所有者的私有 Kaggle Dataset，本仓库仅记录结果，不上传照片。
+
+| 新照片及预先指定类别 | M0（Roll / Pitch / square-vFoV，度） | R19（同顺序，度） | 最终来源 | 最终输出（度） |
+|---|---|---|---|---|
+| Nankai University Library / `purpose_built` | -1.3636395524 / 10.8460910618 / 32.4179520485 | -1.3349916627 / 10.8460910618 / 32.5611914973 | M0 / M0 / M0 | -1.3636395524 / 10.8460910618 / 32.4179520485 |
+| Hanshan Temple Puming Pagoda / `heritage` | 2.3376678041 / 32.0111520140 / 29.0661489470 | 2.2975607585 / 32.0168815919 / 28.6650784904 | M0 / R19 / M0 | 2.3376678041 / 32.0168815919 / 29.0661489470 |
+
+两个分支均生成了可解析的相机参数，并分别保存为 Kaggle working 下的 `tsrg_nankai_result.json` 和 `tsrg_hanshan_result.json`。上述新照片 FP16 运行结果不能与冻结的 R20 V3 BF16 误差指标混合，也不能仅凭单张样例判定模型预测精度高低。独立命令行的实测验收结果见下节。
+
+
+## 已完成的 GitHub 下载版独立命令行验收
+
+项目所有者将 `feature/inference-download-v1` 下载版上传至私有 Kaggle Dataset `caolitong/tsrg-download-test`，Kaggle 将 ZIP 自动展开为项目目录。使用原始基础权重、SHA256 校验一致的 R19 Epoch-3 LoRA、官方源码及另一私有 Dataset 中的新照片 `hanshansi.jpg`，从**该 GitHub 下载包的实际 `tsrg/inference.py`** 启动 `python -m tsrg.inference`，设置类别 `heritage`，在双 Tesla T4 / FP16 下完成推理，子进程退出状态为 `0`。程序输出并保存 `/kaggle/working/tsrg_release_smoke/hanshan_cli_result.json`；关键字段如下，数据依据所有者提供的 Kaggle 执行输出记录：
+
+```json
+{
+  "category": "heritage",
+  "roll_deg": 2.337667804133759,
+  "pitch_deg": 32.0168815919104,
+  "square_vfov_deg": 29.06614894698666,
+  "sources": {
+    "roll": "m0",
+    "pitch": "r19",
+    "square_vfov": "m0"
+  }
+}
+```
+
+这些数值与同一张寒山寺照片在原 Notebook 的 FP16 结果一致，说明下载版的模型加载、文本解析、LoRA 调用及 `M0 / R19 / M0` 参数路由在该样例上正常工作。私有图片及完整 Kaggle 生成的 JSON 尚未复制进本仓库；该记录不表示已完成异地硬件复现、单 GPU 测试、任意照片自动分类、正式 R20 BF16 重现或对预测精度的新增验证。
+
+## 4. 文件许可与来源
+
+上游软件采用 S-Lab License 1.0，含非商业使用及保留版权声明等条件。TSRG 自有工具代码的许可范围详见仓库 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。大型原始权重、第三方原始图片和历史训练数据均须分别核对分发权。正式公开前完成 `RELEASE_CHECKLIST.md` 中的检查。

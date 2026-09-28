@@ -1,0 +1,11 @@
+# Install the matching GPU-enabled PyTorch 2.10.0 build separately.
+# This list follows the recorded R20 V3 text-runtime versions, not the
+# older versions in the upstream foundation repository's requirements file.
+transformers==5.0.0
+peft==0.19.1
+huggingface-hub>=0.31
+numpy>=2.0,<3
+Pillow>=11,<13
+safetensors>=0.5
+timm==0.9.12
+einops>=0.8
