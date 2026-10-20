@@ -5,21 +5,21 @@
 - RADIO: https://www.kaggle.com/datasets/caolitong/tourism-puffin-m1-v3-radio-cache-742
 - Geometry: https://www.kaggle.com/datasets/caolitong/tourism-puffin-geometry-training
 
-目标为现有 **Private** 仓库的 Release [archive-20260927](https://github.com/caolitong0717/TSRG/releases/tag/archive-20260927)。已上传的 R14/R16/R17/R18/R19/R20 V3/M0 七个原始 ZIP 不受影响。
+目标为现有 **Private** 仓库的 Release [archive-20260927](https://github.com/UACresearch/TSRG/releases/tag/archive-20260927)。已上传的 R14/R16/R17/R18/R19/R20 V3/M0 七个原始 ZIP 不受影响。
 
 ## 第一次设置（只需一次）
 
 1. 在 Kaggle [账户设置](https://www.kaggle.com/settings) 的 **API Tokens** 中创建新的 API access token，复制 token 原文（通常以 KGAT_ 开头）。可参考 [Kaggle CLI 认证说明](https://github.com/Kaggle/kaggle-cli/blob/main/docs/README.md)。
-2. 打开 GitHub [仓库 Actions Secrets](https://github.com/caolitong0717/TSRG/settings/secrets/actions) → **New repository secret**。
+2. 打开 GitHub [仓库 Actions Secrets](https://github.com/UACresearch/TSRG/settings/secrets/actions) → **New repository secret**。
 3. Name 填 **KAGGLE_API_TOKEN**；Secret 填刚才的 Kaggle token 原文。不要填整个 kaggle.json，也不要发送到聊天、Issue 或代码中。点击 **Add secret**。
 4. 不要修改仓库 Private 状态。工作流会在仓库不是 Private 时停止。
 
 ## 启动备份
 
-1. 打开 [Actions 工作流](https://github.com/caolitong0717/TSRG/actions/workflows/archive-kaggle-to-release.yml)。
+1. 打开 [Actions 工作流](https://github.com/UACresearch/TSRG/actions/workflows/archive-kaggle-to-release.yml)。
 2. 点击 **Run workflow**，Branch 保持 **main**。
 3. dataset 先选 **radio**。version 默认留空，脚本将从 Kaggle 元数据识别当前版本并固定下载这一版本；如果无法识别，可以到 Kaggle 确认版本号后填入数字。
-4. 运行完成出现 **BACKUP SUCCESS**，检查 [Release Assets](https://github.com/caolitong0717/TSRG/releases/tag/archive-20260927) 中的 RADIO 分卷及其 MANIFEST.json。
+4. 运行完成出现 **BACKUP SUCCESS**，检查 [Release Assets](https://github.com/UACresearch/TSRG/releases/tag/archive-20260927) 中的 RADIO 分卷及其 MANIFEST.json。
 5. 再运行一次，dataset 改选 **geometry**。不要把两个数据集同时运行。
 
 仓库自动提供有限的 GITHUB_TOKEN 写入权限；你无需额外创建 GitHub Personal Access Token。私有仓库 Actions 运行可能消耗账户的免费运行分钟数，超出配额可能产生费用或被暂停。
