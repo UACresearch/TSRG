@@ -20,7 +20,7 @@ import requests
 CHUNK = 900 * 1024 * 1024
 READ = 4 * 1024 * 1024
 TAG = 'archive-20260927'
-REPO = 'caolitong0717/TSRG'
+REPO = 'UACresearch/TSRG'
 DATASETS = {
     'geometry': 'caolitong/tourism-puffin-geometry-training',
     'radio': 'caolitong/tourism-puffin-m1-v3-radio-cache-742',
